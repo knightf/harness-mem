@@ -106,18 +106,37 @@ interface BoundarySignal {
 }
 ```
 
+### SerializedEntry
+
+JSON-serializable form of `ContextEntry` for cross-session persistence. Strips the `customScorer` function from `DecayPolicy`.
+
+```typescript
+interface SerializedEntry {
+  id: string
+  type: 'conversational' | 'side-effect' | 'cross-session'
+  content: unknown
+  createdAt: number
+  decay: { strategy: string; halfLife?: number; retainUntil?: string }
+  references: string[]
+  metadata: Record<string, unknown>
+}
+```
+
 ### SideEffectStore and Artifacts
 
-The heap — world state outside the conversation.
+The heap — world state outside the conversation. Artifacts are keyed by normalized path (absolute, forward-slash, lowercase).
 
 ```typescript
 interface SideEffectStore {
   artifacts: Map<string, Artifact>
 }
 
+// Normalize all paths at ingestion: absolute, forward-slash, lowercase
+function normalizePath(path: string, cwd: string): string
+
 interface Artifact {
   id: string
-  location: string           // file path, URL, DB key, etc.
+  location: string           // normalized path
   snapshots: ArtifactSnapshot[]
   currentState: unknown
 }
@@ -134,6 +153,10 @@ interface ArtifactSnapshot {
 The engine has three core responsibilities: frame management, scope resolution, and decay/garbage collection.
 
 ```typescript
+interface ScopeEngineConfig {
+  frameDepthLimit: number      // soft limit, default 100 — triggers aggressive GC when exceeded
+}
+
 interface ScopeEngine {
   // Frame management
   pushFrame(signal: BoundarySignal): ContextFrame
@@ -408,14 +431,19 @@ interface TokenEstimator {
 
 ## PoC Scope Decisions
 
-- **Cross-session persistence:** Stubbed for PoC. The `loadCrossSessionEntries()` interface exists but the persistence format and bootstrap mechanism are deferred. The frame stack + side effects + trace replay are sufficient to prove the core scoping concept.
+- **Cross-session persistence:** Stubbed for PoC. The `loadCrossSessionEntries()` interface exists but the persistence format and bootstrap mechanism are deferred. The frame stack + side effects + trace replay are sufficient to prove the core scoping concept. For future cross-session work, entries are serialized as JSON using `SerializedEntry` (strips function fields from `DecayPolicy`, retaining only strategy name and parameters). The engine reconstructs scorers from the strategy name on load.
 - **Single call stack:** The PoC assumes a single active frame stack (no parallel frames). Real agents may run tools in parallel, but modeling this as concurrent frames adds complexity orthogonal to the core scoping idea. State this as a known limitation.
 
-## Open Questions
+## Resolved Design Decisions
 
-1. **Capture heuristics** — when a new frame is pushed, how do we decide which parent entries to capture (closure)? This likely needs LLM assistance as well.
-2. **Cross-session bootstrap** — how are cross-session entries loaded into the engine at the start of a new session? What format do they persist in? (Deferred for PoC.)
-3. **Trace export format** — what exact format do Claude Code conversation exports use? This needs investigation to build the adapter.
-4. **Re-entrant context** — if the agent returns to a previous topic (user says "go back to what we were doing before"), does the engine reactivate an old frame, create a new one with captures, or something else?
-5. **Frame depth limits** — is there a maximum frame depth? In long conversations, unbounded nesting could become a problem independent of GC.
-6. **Artifact identity normalization** — `SideEffectStore` keys artifacts by location string. What happens when the same file is represented by different path formats (relative vs. absolute, different separators)? Needs a normalization strategy.
+1. **Capture heuristics** — Reference-based capture. When an entry from a parent frame is referenced by activity in the current frame (e.g., a tool call reads a file mentioned in a parent entry), it is automatically captured. No LLM-assisted prediction needed — uncaptured parent entries remain accessible via Tier 3 scope resolution and will score high if they become relevant. LLM-assisted capture can be layered on later if reference-based capture proves insufficient.
+
+2. **Cross-session serialization** — Entries serialize to JSON via a `SerializedEntry` format that strips the `customScorer` function from `DecayPolicy` and retains only the strategy name and parameters. On load, the engine reconstructs the scorer from the strategy field. Persistence format (file layout, storage location) is deferred for PoC.
+
+3. **Trace format** — Claude Code stores session traces as JSONL at `~/.claude/projects/<normalized-path>/<session-uuid>.jsonl`. Each line is a JSON object with `type` (`user`, `assistant`, `tool_result`, `progress`), `parentUuid` for turn chaining, Anthropic API-style `content` blocks (`text`, `tool_use`, `tool_result`), timestamps, and token usage. The `TraceAdapter` reads these files directly — no external tooling dependency needed. The adapter is a simple type mapping (~30-40 lines).
+
+4. **Re-entrant context** — No special handling. When a user returns to a previous topic, no old frames are reactivated and no explicit captures are created. The three-tier scope resolution handles this naturally: entries from the old frame remain accessible via Tier 3 and will score high when they become relevant again. If this proves insufficient, explicit capture can be added later.
+
+5. **Frame depth limits** — Soft limit with a configurable threshold, defaulting to 100. When frame count exceeds the threshold, an aggressive GC pass is triggered that compacts older frames into summary frames. The threshold is exposed as a configuration parameter for experimentation during the PoC.
+
+6. **Artifact identity normalization** — All paths are normalized to absolute, forward-slash, lowercase form at ingestion time. A single `normalizePath()` function is used consistently across the engine (in `SideEffectStore`, `TraceAdapter`, and anywhere else paths are handled).
