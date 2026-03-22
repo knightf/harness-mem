@@ -124,14 +124,14 @@ interface SerializedEntry {
 
 ### SideEffectStore and Artifacts
 
-The heap — world state outside the conversation. Artifacts are keyed by normalized path (absolute, forward-slash, lowercase).
+The heap — world state outside the conversation. Artifacts are keyed by normalized path (absolute, platform-native, lowercase).
 
 ```typescript
 interface SideEffectStore {
   artifacts: Map<string, Artifact>
 }
 
-// Normalize all paths at ingestion: absolute, forward-slash, lowercase
+// Normalize paths at ingestion using Node.js path.resolve() for platform-native absolute paths, then lowercase
 function normalizePath(path: string, cwd: string): string
 
 interface Artifact {
@@ -446,4 +446,4 @@ interface TokenEstimator {
 
 5. **Frame depth limits** — Soft limit with a configurable threshold, defaulting to 100. When frame count exceeds the threshold, an aggressive GC pass is triggered that compacts older frames into summary frames. The threshold is exposed as a configuration parameter for experimentation during the PoC.
 
-6. **Artifact identity normalization** — All paths are normalized to absolute, forward-slash, lowercase form at ingestion time. A single `normalizePath()` function is used consistently across the engine (in `SideEffectStore`, `TraceAdapter`, and anywhere else paths are handled).
+6. **Artifact identity normalization** — All paths are normalized at ingestion time using Node.js `path.resolve()` for platform-native absolute paths, then lowercased. A single `normalizePath()` function wraps this and is used consistently across the engine (in `SideEffectStore`, `TraceAdapter`, and anywhere else paths are handled).
