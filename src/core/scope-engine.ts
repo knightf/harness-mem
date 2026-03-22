@@ -12,6 +12,7 @@ import { SimpleTokenEstimator } from './utils.js';
 import { ScopeChain } from './scope-chain.js';
 import { SideEffectStoreImpl } from '../side-effects/store.js';
 import { DecayEngineImpl } from '../decay/decay-engine.js';
+import { GarbageCollector } from '../decay/gc.js';
 
 export class ScopeEngineImpl {
   private frames: Map<string, ContextFrame>;
@@ -23,6 +24,7 @@ export class ScopeEngineImpl {
   private decayEngine: DecayEngineImpl;
   private tokenEstimator: SimpleTokenEstimator;
   private accessLog: AccessLog;
+  private garbageCollector: GarbageCollector;
 
   constructor(private config: ScopeEngineConfig, private cwd: string) {
     this.frames = new Map();
@@ -30,6 +32,7 @@ export class ScopeEngineImpl {
     this.crossSessionEntries = [];
     this.decayEngine = new DecayEngineImpl();
     this.tokenEstimator = new SimpleTokenEstimator();
+    this.garbageCollector = new GarbageCollector(this.decayEngine, this.tokenEstimator);
     this.sideEffectStore = new SideEffectStoreImpl(cwd);
     this.scopeChain = new ScopeChain(this.decayEngine, this.tokenEstimator);
     this.accessLog = {
@@ -135,6 +138,19 @@ export class ScopeEngineImpl {
   }
 
   gc(): void {
-    // no-op placeholder — will be wired in Task 9
+    const allEntries: ContextEntry[] = [];
+    for (const frame of this.frames.values()) {
+      allEntries.push(...frame.entries);
+    }
+
+    const result = this.garbageCollector.classify(allEntries, Date.now(), this.accessLog);
+
+    const collectedIds = new Set(result.collected.map(e => e.id));
+    for (const frame of this.frames.values()) {
+      frame.entries = frame.entries.filter(e => !collectedIds.has(e.id));
+    }
+    for (const id of collectedIds) {
+      this.entryRegistry.delete(id);
+    }
   }
 }
