@@ -381,12 +381,43 @@ To validate the engine against real agent behavior, the PoC includes a trace rep
 ### Trace Types
 
 ```typescript
+// Raw line from Claude Code JSONL — mirrors the on-disk format
+interface RawTraceEntry {
+  type: 'user' | 'assistant' | 'tool_result' | 'progress'
+  parentUuid: string | null
+  uuid: string
+  timestamp: string
+  sessionId: string
+  message?: {
+    role: string
+    content: string | ContentBlock[]
+  }
+  toolUseID?: string
+  isSidechain?: boolean
+  cwd?: string
+  gitBranch?: string
+}
+
+interface ContentBlock {
+  type: 'text' | 'tool_use' | 'tool_result'
+  text?: string
+  id?: string
+  name?: string          // tool name (e.g., 'Read', 'Edit', 'Bash')
+  input?: unknown        // tool parameters
+  content?: unknown      // tool result content
+}
+
+// Normalized event — one atomic unit of activity fed into the engine
 interface TraceEvent {
-  type: 'user-message' | 'assistant-message' | 'tool-call' | 'tool-result' | 'system-reminder'
+  type: 'user-message' | 'assistant-text' | 'tool-call' | 'tool-result' | 'system-reminder'
   timestamp: number
   content: unknown
   toolName?: string
   toolParams?: unknown
+  toolResult?: unknown
+  sourceUuid: string     // links back to the raw JSONL entry
+  hasSideEffect?: boolean  // true if this event modifies external state
+  sideEffectPaths?: string[]  // file paths affected (normalized)
 }
 
 interface ReplayResult {
@@ -406,15 +437,101 @@ interface TimelineEntry {
 }
 ```
 
-### Replay Process
+### JSONL to TraceEvent Decomposition
 
-1. Parse Claude Code conversation export into `TraceEvent[]`
-2. Feed events to `HybridBoundaryDetector` one by one
-3. When a boundary is detected, engine pushes a new frame
-4. Each event becomes a `ContextEntry` in the current frame
-5. Tool calls that modify files get recorded in `SideEffectStore`
-6. At each step, run `resolve()` and record what would have been in scope
-7. Output `ReplayResult` with full timeline
+A single JSONL line may produce **multiple `TraceEvent`s**. This is because Claude Code's assistant messages can contain interleaved text and tool calls in a single `content` array. The adapter decomposes each raw entry into atomic events:
+
+```mermaid
+flowchart TD
+    A["Read JSONL line"] --> B{"entry.type?"}
+
+    B -- "user" --> C["Emit 1 TraceEvent\ntype: user-message\ncontent: message text"]
+
+    B -- "assistant" --> D["Iterate content blocks"]
+    D --> E{"block.type?"}
+    E -- "text" --> F["Emit TraceEvent\ntype: assistant-text\ncontent: text"]
+    E -- "tool_use" --> G["Emit TraceEvent\ntype: tool-call\ntoolName: block.name\ntoolParams: block.input"]
+    F --> H{"More blocks?"}
+    G --> H
+    H -- "Yes" --> E
+    H -- "No" --> I["Done with this line"]
+
+    B -- "tool_result" --> J["Emit 1 TraceEvent\ntype: tool-result\ntoolResult: result content"]
+    J --> K["Detect side effects\n(Edit, Write, Bash w/ file ops)"]
+    K --> L["Set hasSideEffect flag\n+ extract sideEffectPaths"]
+
+    B -- "progress" --> M["Skip or emit\ntype: system-reminder\n(if relevant)"]
+```
+
+**Side effect detection rules** (applied to `tool-call` + `tool-result` pairs):
+
+| Tool | Side effect? | Path extraction |
+|---|---|---|
+| `Read`, `Glob`, `Grep` | No | — |
+| `Edit`, `Write` | Yes | `file_path` from tool params |
+| `Bash` | Conditional | Heuristic: check command for `mkdir`, `rm`, `mv`, `cp`, `git`, write redirects. Flag as side effect if detected; extract paths from command args |
+| `NotebookEdit` | Yes | Notebook file path from params |
+
+### Replay Iterator
+
+The replay system processes events through an **iterator pattern** that mirrors the live event processing flow. Each call to `next()` advances the replay by one event, runs it through the full pipeline (boundary detection → frame management → entry creation), and optionally triggers scope resolution.
+
+```typescript
+interface TraceReplayIterator {
+  // Load and decompose a JSONL file into ordered TraceEvents
+  load(jsonlPath: string): Promise<void>
+
+  // Total number of events after decomposition
+  eventCount(): number
+
+  // Process the next event through the engine pipeline:
+  // 1. Create ContextEntry from TraceEvent
+  // 2. Record side effects in SideEffectStore (if any)
+  // 3. Run HybridBoundaryDetector
+  // 4. Push/pop frames as needed
+  // 5. Add entry to current frame
+  // Returns the processing result for this step
+  next(): Promise<StepResult>
+
+  // Run resolve() at the current point — snapshot what context
+  // would be assembled for the agent's next LLM call
+  resolve(budget: number): ResolvedContext
+
+  // Process all remaining events, resolving at each resolution point
+  runAll(budget: number): Promise<ReplayResult>
+
+  // Current state accessors
+  currentFrame(): ContextFrame
+  frameCount(): number
+  eventIndex(): number
+  isComplete(): boolean
+}
+
+interface StepResult {
+  event: TraceEvent
+  entry: ContextEntry
+  boundaryDetected: BoundarySignal | null
+  framePushed: boolean
+  sideEffectsRecorded: Artifact[]
+}
+```
+
+**Resolution points during replay:**
+
+Not every event warrants a full `resolve()` call. In a live agent session, resolution happens when the agent needs to assemble its next prompt — typically after processing a batch of events. During replay, resolution points are determined by:
+
+1. **After every user message** — this is where the agent would assemble a prompt to respond
+2. **After every tool result** — this is where the agent would assemble a prompt to decide the next action
+3. **On demand** — the test harness can call `resolve()` at any point to inspect current scope state
+
+The `runAll()` method uses rules 1 and 2 by default, recording a `ResolvedContext` snapshot at each resolution point into the `ReplayResult.resolutions` array. The `timeline` array records a `TimelineEntry` at each boundary detection, regardless of resolution.
+
+### Replay Process (detailed)
+
+1. **Load**: Read the JSONL file, parse each line into `RawTraceEntry`, decompose into ordered `TraceEvent[]` (one raw entry may yield multiple events)
+2. **Iterate**: For each event, call `next()` which runs the full event processing pipeline from the flowchart above
+3. **Resolve**: At resolution points (after user messages and tool results), call `resolve(budget)` and record the `ResolvedContext` snapshot
+4. **Collect**: After all events are processed, return `ReplayResult` with the complete frame tree, all resolution snapshots, and the timeline
 
 ### Validation Criteria
 
