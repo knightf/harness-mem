@@ -1,0 +1,15 @@
+export type * from './core/types.js';
+export { ScopeEngineImpl } from './core/scope-engine.js';
+export { ScopeChain } from './core/scope-chain.js';
+export { generateId, normalizePath, SimpleTokenEstimator } from './core/utils.js';
+export { createDecayPolicy } from './decay/policies.js';
+export { DecayEngineImpl } from './decay/decay-engine.js';
+export { GarbageCollector } from './decay/gc.js';
+export { LLMCompactor } from './decay/compactor.js';
+export { SideEffectStoreImpl } from './side-effects/store.js';
+export { ToolClusterDetector } from './boundary/tool-cluster.js';
+export { SemanticBoundaryDetector } from './boundary/semantic.js';
+export { HybridBoundaryDetector } from './boundary/hybrid.js';
+export { ClaudeLLMProvider } from './llm/provider.js';
+export { TraceAdapter } from './trace/adapter.js';
+export { TraceReplayIterator } from './trace/replay.js';
