@@ -148,6 +148,61 @@ interface ArtifactSnapshot {
 }
 ```
 
+## Event Processing Flow
+
+When a new event arrives (either from a live agent session or trace replay), the engine processes it through the following pipeline:
+
+```mermaid
+flowchart TD
+    A["New Event Arrives"] --> B["Create ContextEntry\nfrom event"]
+    B --> C{"Event has\nside effects?"}
+    C -- "Yes (file edit, API call, etc.)" --> D["Record in SideEffectStore\n(normalizePath → upsert Artifact)"]
+    C -- "No" --> E
+    D --> E["Pass entry to\nHybridBoundaryDetector"]
+
+    E --> F["ToolClusterDetector\n(heuristic, instant)"]
+    F --> G{"User input present\nOR cluster boundary?"}
+    G -- "No" --> H{"Heuristic found\nboundary?"}
+    G -- "Yes" --> I["SemanticBoundaryDetector\n(LLM call)"]
+    I --> J["Merge results\n(type-specific precedence)"]
+    J --> H
+
+    H -- "No boundary" --> K["Add entry to\ncurrent frame"]
+    H -- "Boundary detected" --> L["Pop/complete\ncurrent frame"]
+    L --> M{"Frame count >\nframeDepthLimit?"}
+    M -- "Yes" --> N["Aggressive GC pass\n(compact old frames)"]
+    M -- "No" --> O
+    N --> O["Push new frame\n(with BoundarySignal)"]
+    O --> P["Reference-based capture\n(auto-capture referenced parent entries)"]
+    P --> K
+
+    K --> Q{"Agent needs\nprompt assembled?"}
+    Q -- "Not yet\n(more events coming)" --> A
+    Q -- "Yes" --> R["resolve(budget)"]
+
+    R --> S["Walk scope chain\n(Tier 1 → 2 → 3)"]
+    S --> T["Collect SideEffectStore\ncurrent artifact states"]
+    T --> U["Load cross-session\nentries (if any)"]
+    U --> V["Apply decay scoring\n(DecayEngine.score)"]
+    V --> W["Rank by relevance,\nfit within token budget"]
+    W --> X{"Entries to compact?"}
+    X -- "Yes" --> Y["Compactor\n(LLM summarization)"]
+    X -- "No" --> Z
+    Y --> Z["Return ResolvedContext\nto agent"]
+    Z --> AA["Agent uses context\nfor next LLM call"]
+    AA --> A
+```
+
+### Key points in the flow:
+
+- **Entry creation** happens for every event, regardless of whether a boundary is detected
+- **Side effects are recorded immediately** before boundary detection, so the `SideEffectStore` is always up-to-date
+- **Boundary detection is two-phase**: heuristic runs always (free), semantic runs only when warranted (costs an LLM call)
+- **Frame depth check** happens at push time, not continuously — GC is triggered lazily
+- **Reference-based capture** happens automatically when a new frame is pushed — entries from parent frames that were referenced by the boundary-triggering activity are captured
+- **Scope resolution is on-demand** — it only runs when the agent needs to assemble its next prompt, not on every event. Multiple events may be processed between resolution calls
+- **Compaction is opportunistic** — during resolution, entries that score between the collect and retain thresholds are compacted rather than dropped
+
 ## Scope Engine
 
 The engine has three core responsibilities: frame management, scope resolution, and decay/garbage collection.
