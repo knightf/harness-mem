@@ -62,14 +62,14 @@ interface ContextEntry {
 
 ### DecayPolicy
 
-Controls how an entry ages over time.
+Controls how an entry ages over time. The policy declares the decay *strategy* and its parameters. The `DecayEngine` is responsible for computing the actual score using the policy, the entry's type, and the access log.
 
 ```typescript
 interface DecayPolicy {
   strategy: 'none' | 'linear' | 'step' | 'custom'
-  halfLife?: number
-  retainUntil?: string
-  score: (age: number, accessCount: number) => number
+  halfLife?: number              // for linear: how quickly relevance drops
+  retainUntil?: string           // for step: retain fully until condition met, then drop
+  customScorer?: (age: number, accessCount: number) => number  // only for 'custom' strategy
 }
 ```
 
@@ -87,6 +87,12 @@ interface ContextFrame {
   status: 'active' | 'completed' | 'abandoned'
 }
 ```
+
+**Frame lifecycle transitions:**
+
+- `active` → `completed`: when `popFrame()` is called (the step finished its work)
+- `active` → `abandoned`: when a new frame is pushed due to a `goal-shift` boundary that invalidates the current frame's purpose (e.g., user says "forget that, do this instead")
+- GC treats abandoned frames more aggressively — their entries decay at an accelerated rate since the work was not completed
 
 ### BoundarySignal
 
@@ -132,16 +138,23 @@ interface ScopeEngine {
   // Frame management
   pushFrame(signal: BoundarySignal): ContextFrame
   popFrame(frameId: string): void
+  abandonFrame(frameId: string): void
   getCurrentFrame(): ContextFrame
-  addEntry(entry: ContextEntry): void
-  capture(entryIds: string[]): void
+  addEntry(entry: ContextEntry): void       // adds to current frame
+  capture(entryIds: string[]): void          // capture parent entries into current frame
+
+  // Entry registry — global index for O(1) lookup by ID
+  getEntry(entryId: string): ContextEntry | null
 
   // Scope resolution
-  resolve(): ResolvedContext
+  resolve(budget: number): ResolvedContext
 
   // Side effects
   recordSideEffect(artifact: Artifact): void
   getArtifact(location: string): Artifact | null
+
+  // Cross-session (deferred for PoC — stubbed interface)
+  loadCrossSessionEntries(entries: ContextEntry[]): void
 
   // Decay / GC
   gc(): void
@@ -158,14 +171,22 @@ interface ResolvedContext {
 
 ### Scope Resolution Algorithm
 
-1. Start at the current frame
-2. Walk up the parent chain (scope chain traversal)
-3. At each frame, collect entries + captured entries
-4. Query the `SideEffectStore` for current artifact states
-5. Pull in cross-session entries (module-level imports)
-6. Apply decay scoring to everything collected
-7. Rank by relevance score, fit within token budget
+1. Start at the current frame — collect all its entries
+2. Walk up the parent chain (scope chain traversal). At each parent frame:
+   - Collect entries that are **captured** by the current frame (closure bindings)
+   - Also collect entries that are **not captured** but pass a decay score threshold (implicit scope — like JS scope chain where all outer variables are visible, not just captured ones)
+   - The distinction: captured entries get a relevance boost (they were explicitly marked as important), uncaptured parent entries are available but compete on decay score alone
+3. Query the `SideEffectStore` for current artifact states
+4. Pull in cross-session entries (module-level imports)
+5. Apply decay scoring to everything collected
+6. Rank by relevance score with priority tiers:
+   - **Tier 1**: Current frame entries (always highest priority)
+   - **Tier 2**: Captured entries from parent frames (explicit closures)
+   - **Tier 3**: Uncaptured parent entries + side effects + cross-session (compete on score)
+7. Fit within token budget, dropping lowest-scored entries first
 8. Return `ResolvedContext`
+
+The engine maintains an internal **entry registry** (`Map<string, ContextEntry>`) for O(1) entry lookup by ID. This is populated as entries are added via `addEntry()` and is the backing store that `captures` references resolve against.
 
 ## Boundary Detection — Hybrid Approach
 
@@ -219,12 +240,13 @@ class HybridBoundaryDetector implements BoundaryDetector {
 }
 ```
 
-**Merge logic:**
+**Merge logic (in priority order):**
 
-- Semantic takes precedence for `user-input` and `goal-shift` types
-- Heuristic takes precedence for `tool-cluster` type
-- If both fire, higher confidence wins
-- If semantic says "no boundary" but heuristic says "cluster ended", still push frame (structural boundaries are independent of semantic ones)
+1. **Type-specific precedence first:**
+   - Heuristic owns `tool-cluster` boundaries — if heuristic says cluster ended, push frame regardless of semantic result (structural boundaries are independent of semantic ones)
+   - Semantic owns `user-input` and `goal-shift` boundaries — its assessment of meaning takes precedence
+2. **Confidence tiebreak second:** Only applies when both detectors agree a boundary exists but disagree on the type. Higher confidence wins.
+3. **Graceful degradation:** If the LLM call in `SemanticBoundaryDetector` fails, fall back to heuristic-only operation. Log the failure for observability.
 
 ## Decay & Garbage Collection
 
@@ -364,12 +386,36 @@ harness/
 ## Technology
 
 - **Language:** TypeScript (Node.js)
-- **LLM dependency:** Required for `SemanticBoundaryDetector` and `Compactor`. Should be provider-agnostic (abstract LLM interface, concrete implementations for Claude, OpenAI, etc.)
+- **LLM dependency:** Required for `SemanticBoundaryDetector` and `Compactor`. Provider-agnostic via abstract interface:
+
+```typescript
+interface LLMProvider {
+  complete(prompt: string, options?: { maxTokens?: number; temperature?: number }): Promise<string>
+}
+```
+
+Concrete implementations for Claude, OpenAI, etc. are thin wrappers around this interface.
+
+- **Token estimation:** Approximate via a `TokenEstimator` interface. PoC implementation can use a simple heuristic (e.g., `content.length / 4`):
+
+```typescript
+interface TokenEstimator {
+  estimate(content: unknown): number
+}
+```
+
 - **Testing:** Real Claude Code conversation exports as fixtures
+
+## PoC Scope Decisions
+
+- **Cross-session persistence:** Stubbed for PoC. The `loadCrossSessionEntries()` interface exists but the persistence format and bootstrap mechanism are deferred. The frame stack + side effects + trace replay are sufficient to prove the core scoping concept.
+- **Single call stack:** The PoC assumes a single active frame stack (no parallel frames). Real agents may run tools in parallel, but modeling this as concurrent frames adds complexity orthogonal to the core scoping idea. State this as a known limitation.
 
 ## Open Questions
 
 1. **Capture heuristics** — when a new frame is pushed, how do we decide which parent entries to capture (closure)? This likely needs LLM assistance as well.
-2. **Token estimation** — how accurately do we need to estimate token costs for budget-aware resolution? A rough approximation may suffice for the PoC.
-3. **Cross-session bootstrap** — how are cross-session entries loaded into the engine at the start of a new session? What format do they persist in?
-4. **Trace export format** — what exact format do Claude Code conversation exports use? This needs investigation to build the adapter.
+2. **Cross-session bootstrap** — how are cross-session entries loaded into the engine at the start of a new session? What format do they persist in? (Deferred for PoC.)
+3. **Trace export format** — what exact format do Claude Code conversation exports use? This needs investigation to build the adapter.
+4. **Re-entrant context** — if the agent returns to a previous topic (user says "go back to what we were doing before"), does the engine reactivate an old frame, create a new one with captures, or something else?
+5. **Frame depth limits** — is there a maximum frame depth? In long conversations, unbounded nesting could become a problem independent of GC.
+6. **Artifact identity normalization** — `SideEffectStore` keys artifacts by location string. What happens when the same file is represented by different path formats (relative vs. absolute, different separators)? Needs a normalization strategy.
