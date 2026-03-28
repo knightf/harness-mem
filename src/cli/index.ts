@@ -13,6 +13,13 @@ export interface StdinPayload {
   cwd: string;
 }
 
+interface DigestCommandOptions extends Record<string, unknown> {
+  digestDir?: string;
+  model?: string;
+  force?: boolean;
+  sessionId?: string;
+}
+
 export function parseStdinPayload(raw: string): StdinPayload | null {
   if (raw === '') return null;
 
@@ -72,14 +79,21 @@ export function buildProgram(): Command {
     .description('Digest a session transcript into a summary')
     .option('--digest-dir <dir>', 'Directory to store digests')
     .option('--model <model>', 'LLM model to use for summarization')
+    .option('--session-id <id>', 'Session ID (skip stdin when provided)')
     .option('--force', 'Overwrite existing digest', false)
-    .action(async (transcriptPathArg: string | undefined, options: Record<string, unknown>) => {
+    .action(async (transcriptPathArg: string | undefined, options: DigestCommandOptions) => {
       const config = await loadConfig({ flags: options });
-      const stdinRaw = await readStdin();
-      const payload = parseStdinPayload(stdinRaw);
+      const cliTranscriptPath = transcriptPathArg;
+      const cliSessionId = typeof options.sessionId === 'string' ? options.sessionId : undefined;
 
-      const transcriptPath = transcriptPathArg ?? payload?.transcriptPath ?? '';
-      const sessionId = payload?.sessionId ?? '';
+      let payload: StdinPayload | null = null;
+      if (!cliTranscriptPath || !cliSessionId) {
+        const stdinRaw = await readStdin();
+        payload = parseStdinPayload(stdinRaw);
+      }
+
+      const transcriptPath = cliTranscriptPath ?? payload?.transcriptPath ?? '';
+      const sessionId = cliSessionId ?? payload?.sessionId ?? '';
 
       await runDigest({
         transcriptPath,

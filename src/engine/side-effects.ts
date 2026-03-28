@@ -1,5 +1,5 @@
-import { normalizePath } from '../../src/engine/utils.js';
-import type { Artifact } from '../../src/engine/types.js';
+import { normalizePath } from './utils.js';
+import type { Artifact } from './types.js';
 
 // ─── Tool Classification ──────────────────────────────────────────────────────
 

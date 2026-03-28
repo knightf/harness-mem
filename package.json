@@ -5,13 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "harness-mem": "./bin/harness-mem.ts"
+    "harness-mem": "./bin/harness-mem.js"
   },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsx bin/harness-mem.ts"
+    "dev": "node bin/harness-mem.js"
   },
   "keywords": [
     "claude-code",
