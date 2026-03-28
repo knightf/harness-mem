@@ -142,6 +142,7 @@ export interface StepResult {
 export interface ReplayResult {
   frames: ContextFrame[];
   resolutions: ResolvedContext[];
+  sideEffects: Artifact[];
   timeline: TimelineEntry[];
 }
 
