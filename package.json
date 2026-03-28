@@ -13,13 +13,20 @@
     "test:watch": "vitest",
     "dev": "tsx bin/harness-mem.ts"
   },
-  "keywords": ["claude-code", "agent", "session", "memory", "cli"],
+  "keywords": [
+    "claude-code",
+    "agent",
+    "session",
+    "memory",
+    "cli"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ai": "^4.0.0",
     "@ai-sdk/anthropic": "^1.0.0",
-    "commander": "^13.0.0"
+    "ai": "^4.0.0",
+    "commander": "^13.0.0",
+    "dayjs": "^1.11.20"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

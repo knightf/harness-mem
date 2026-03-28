@@ -2,6 +2,10 @@ import type { DigestMetadata } from '../engine/types.js';
 import { formatDigest, parseDigest } from '../summarizer/formatter.js';
 import fs from 'fs/promises';
 import path from 'path';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+
+dayjs.extend(utc);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,14 +157,8 @@ export class DigestStore {
   }
 
   private buildFilename(metadata: DigestMetadata): string {
-    const d = new Date(metadata.timestamp);
-    const YYYY = d.getUTCFullYear();
-    const MM = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const DD = String(d.getUTCDate()).padStart(2, '0');
-    const HH = String(d.getUTCHours()).padStart(2, '0');
-    const mm = String(d.getUTCMinutes()).padStart(2, '0');
-    const ss = String(d.getUTCSeconds()).padStart(2, '0');
+    const datePart = dayjs.utc(metadata.timestamp).format('YYYY-MM-DD-HHmmss');
     const shortHash = this.shortHash(metadata.sessionId);
-    return `${YYYY}-${MM}-${DD}-${HH}${mm}${ss}-${shortHash}.md`;
+    return `${datePart}-${shortHash}.md`;
   }
 }
