@@ -23,9 +23,20 @@ Coming back to agent work after hours or days is disorienting. You lose the "why
 
 Analyzes a session transcript and writes a digest file.
 
-**Input:**
-- Reads JSON from stdin (when invoked as a hook) to get `session_id` and `transcript_path`
-- Also accepts `harness-mem digest <path>` for manual invocation
+**Input (priority order):**
+1. Stdin JSON (when invoked as a hook) — parses `session_id` and `transcript_path` from the Claude Code hook payload
+2. CLI argument — `harness-mem digest <path>` for manual invocation (session ID extracted from filename)
+3. If stdin is empty/malformed and no CLI argument, exits with error
+
+Claude Code hook stdin schema (fields we consume):
+```json
+{
+  "session_id": "6b293462-4df0-46b0-88ea-dbc9a44df147",
+  "transcript_path": "/home/user/.claude/projects/C--Users-Eric-Repos-harness/6b293462-....jsonl",
+  "cwd": "C:\\Users\\Eric\\Repos\\harness",
+  "hook_event_name": "SessionEnd"
+}
+```
 
 **Behavior:**
 1. Parse JSONL transcript into normalized events
@@ -47,7 +58,13 @@ Analyzes a session transcript and writes a digest file.
 Reads saved digests and prints a briefing to stdout.
 
 **Behavior:**
-1. Scan for transcripts that don't have a corresponding digest (by session ID). If found, spawn `harness-mem digest` as a detached background process for each. Print a note: "N sessions are being digested in the background."
+1. **Fallback digest** — Scan all project directories under `~/.claude/projects/` for undigested transcripts:
+   - Compare transcript session IDs against existing digests in the digest directory
+   - Only consider transcripts created within the `recap.since` time window (default 24h)
+   - Cap at 10 undigested sessions (configurable via `recap.maxFallbackDigests`) to avoid burst processing
+   - Skip active sessions (check PIDs in `~/.claude/sessions/`)
+   - Spawn `harness-mem digest` as a detached background process for each undigested transcript
+   - Print a note: "N sessions are being digested in the background."
 2. Read digest files, filter by time window, sort newest-first
 3. Concatenate digests until hitting the max-length limit. If truncated, append: "... and N more sessions not shown. Run `harness-mem recap --no-limit` to see all."
 4. Print to stdout (injected into Claude's context by SessionStart hook)
@@ -212,7 +229,8 @@ Added to Claude Code's `settings.json` (user or project level):
   "defaultProvider": "anthropic",
   "recap": {
     "since": "24h",
-    "maxLength": 20000
+    "maxLength": 20000,
+    "maxFallbackDigests": 10
   },
   "clean": {
     "olderThan": "30d"
@@ -226,6 +244,37 @@ Added to Claude Code's `settings.json` (user or project level):
 - `HARNESS_MEM_DIGEST_DIR` — Digest directory
 - `HARNESS_MEM_TRANSCRIPT_DIR` — Transcript directory
 - `HARNESS_MEM_MODEL` — Default LLM model
+
+## Transcript Discovery
+
+Claude Code stores session transcripts at `~/.claude/projects/<mangled-project-path>/<session-uuid>.jsonl`. The project path is mangled by replacing path separators with `--` (e.g., `C:\Users\Eric\Repos\harness` → `C--Users-Eric-Repos-harness`).
+
+**Discovery process (used by recap fallback):**
+1. List all project directories under `~/.claude/projects/`
+2. Glob `*.jsonl` in each project directory — each file is a session transcript
+3. Extract session UUID from filename (the filename without `.jsonl` extension)
+4. Compare against existing digests by session ID
+5. Filter by file creation time within the configured `recap.since` window
+6. Skip transcripts for active sessions (cross-reference PIDs in `~/.claude/sessions/*.json`)
+7. Cap at `recap.maxFallbackDigests` (default 10) sessions
+
+**JSONL transcript line schema (fields we consume):**
+- `type` — `"user"`, `"assistant"`, `"progress"`, `"file-history-snapshot"`
+- `timestamp` — ISO 8601
+- `sessionId` — session UUID
+- `cwd` — working directory at time of message
+- `message` — contains `role` and `content` (for user/assistant types)
+
+Sub-agent transcripts at `<session-uuid>/subagents/agent-<id>.jsonl` are included in the analysis when present.
+
+## Repo Strategy
+
+This is a clean rewrite (Approach B) within the existing repository:
+- Rename package from `harness` to `harness-mem` in `package.json`
+- Replace `src/` with the new module structure
+- Update dependencies: add `ai`, `@ai-sdk/anthropic`, `commander`; remove `@anthropic-ai/sdk`
+- Keep `docs/` — design specs document the project's evolution
+- Original code preserved in git history
 
 ## Project Structure
 
