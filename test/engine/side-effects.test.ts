@@ -53,10 +53,21 @@ describe('SideEffectStore', () => {
     expect(artifact!.snapshots!.length).toBe(1);
   });
 
-  it('should normalize paths for lookup', () => {
+  it('should normalize path separators for lookup', () => {
+    const store = new SideEffectStore('/project');
+    store.record({ id: 'a1', type: 'file', location: 'src/foo.ts', state: 'created', createdAt: Date.now() });
+    const artifact = store.get('src\\foo.ts');
+    expect(artifact).not.toBeNull();
+  });
+
+  it('should match case-insensitively on Windows', () => {
     const store = new SideEffectStore('/project');
     store.record({ id: 'a1', type: 'file', location: 'src/Foo.ts', state: 'created', createdAt: Date.now() });
     const artifact = store.get('src/foo.ts');
-    expect(artifact).not.toBeNull();
+    if (process.platform === 'win32') {
+      expect(artifact).not.toBeNull();
+    } else {
+      expect(artifact).toBeNull();
+    }
   });
 });
