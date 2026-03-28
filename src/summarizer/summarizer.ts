@@ -3,8 +3,9 @@ import type { ResolvedContext } from '../engine/types.js';
 
 const PROVIDER_REGISTRY: Record<string, () => Promise<any>> = {
   anthropic: async () => (await import('@ai-sdk/anthropic')).anthropic,
-  openai: async () => (await import('@ai-sdk/openai')).openai,
-  google: async () => (await import('@ai-sdk/google')).google,
+  // TODO: Add when needed — install @ai-sdk/openai or @ai-sdk/google first
+  // openai: async () => (await import('@ai-sdk/openai')).openai,
+  // google: async () => (await import('@ai-sdk/google')).google,
 };
 
 export class Summarizer {
