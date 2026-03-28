@@ -1,6 +1,6 @@
 {
   "name": "harness-mem",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent session memory CLI — analyzes session logs and produces human-readable summaries",
   "type": "module",
   "main": "dist/cli/index.js",
