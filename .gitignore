@@ -5,3 +5,4 @@ dist/
 test/fixtures/traces/real-session.jsonl
 .claude/
 docs/superpowers
+coverage/
