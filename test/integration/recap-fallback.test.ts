@@ -42,6 +42,12 @@ describe('Recap with Fallback', () => {
     });
 
     expect(output).toContain('being digested in the background');
+
+    // Verify spawn was called with the correct transcript path (not undefined)
+    const { spawn } = await import('child_process');
+    expect(spawn).toHaveBeenCalled();
+    const spawnArgs = (spawn as any).mock.calls[0][1];
+    expect(spawnArgs.some((arg: string) => arg.includes('undigested-session.jsonl'))).toBe(true);
   });
 
   it('should show existing digests alongside fallback note', async () => {

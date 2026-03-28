@@ -31,7 +31,7 @@ export async function runRecap(options: RecapOptions): Promise<string> {
         const child = spawn(process.execPath, [
           process.argv[1] || 'harness-mem',
           'digest',
-          session.transcriptPath,
+          session.filePath,
         ], { detached: true, stdio: 'ignore' });
         child.unref();
       }
