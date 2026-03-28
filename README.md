@@ -2,8 +2,7 @@
 
 A CLI tool that analyzes AI agent session logs and produces human-readable summaries. Hooks into Claude Code's session lifecycle to automatically capture what happened in each session and brief you when you return.
 
-[![NPM Version](https://nodei.co/npm/harness-mem.png)](https://npmjs.org/package/harness-mem)
-[![coverage](https://knightf.github.io/harness-mem/badges/master/coverage.svg)](https://knightf.github.io/harness-mem/badges/master/coverage.svg)
+[![NPM Version](https://nodei.co/npm/harness-mem.png?compact=true)](https://npmjs.org/package/harness-mem)
 
 ## The Problem
 

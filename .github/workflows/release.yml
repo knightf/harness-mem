@@ -24,7 +24,6 @@ jobs:
 
       - run: npm ci
       - run: npm test
-      - uses: wouterds/github-coverage-badge-action@v1.0.1
       - run: npm run build
 
       - name: Create Release Pull Request or Publish
