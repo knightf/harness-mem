@@ -1,7 +1,28 @@
 import type { HarnessMemConfig } from '../engine/types.js';
+import { parse as parseDotenv } from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+
+export const DIGEST_CHILD_ENV = 'HARNESS_MEM_DIGEST_CHILD';
+const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.harness-mem');
+
+async function loadConfigEnv(configDir: string): Promise<void> {
+  try {
+    const raw = await fs.readFile(path.join(configDir, '.env'), 'utf-8');
+    const parsed = parseDotenv(raw);
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+  }
+}
 
 const DEFAULTS: HarnessMemConfig = {
   digestDir: path.join(os.homedir(), '.harness-mem', 'digests'),
@@ -40,11 +61,13 @@ export async function loadConfig(options?: {
   configDir?: string;
   flags?: Record<string, unknown>;
 }): Promise<HarnessMemConfig> {
+  const configDir = options?.configDir ?? DEFAULT_CONFIG_DIR;
+  await loadConfigEnv(configDir);
+
   // 1. Start with defaults
   let config: HarnessMemConfig = { ...DEFAULTS, recap: { ...DEFAULTS.recap }, clean: { ...DEFAULTS.clean } };
 
   // 2. Read and deep-merge config file
-  const configDir = options?.configDir ?? path.join(os.homedir(), '.harness-mem');
   const configPath = path.join(configDir, 'config.json');
   try {
     const raw = await fs.readFile(configPath, 'utf-8');

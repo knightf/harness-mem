@@ -4,7 +4,12 @@ vi.mock('../../src/cli/digest.js', () => ({
   runDigest: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('child_process', () => ({
+  spawn: vi.fn().mockReturnValue({ unref: vi.fn(), pid: 4321 }),
+}));
+
 vi.mock('../../src/cli/config.js', () => ({
+  DIGEST_CHILD_ENV: 'HARNESS_MEM_DIGEST_CHILD',
   loadConfig: vi.fn().mockResolvedValue({
     digestDir: '/tmp/digests',
     transcriptDir: '/tmp/transcripts',
@@ -16,9 +21,11 @@ vi.mock('../../src/cli/config.js', () => ({
 }));
 
 import { runDigest } from '../../src/cli/digest.js';
+import { spawn } from 'child_process';
 import { parseStdinPayload, buildProgram } from '../../src/cli/index.js';
 
 const originalIsTTY = process.stdin.isTTY;
+const originalDigestChildEnv = process.env.HARNESS_MEM_DIGEST_CHILD;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,6 +40,11 @@ afterEach(() => {
     value: originalIsTTY,
     configurable: true,
   });
+  if (originalDigestChildEnv === undefined) {
+    delete process.env.HARNESS_MEM_DIGEST_CHILD;
+  } else {
+    process.env.HARNESS_MEM_DIGEST_CHILD = originalDigestChildEnv;
+  }
 });
 
 describe('parseStdinPayload', () => {
@@ -66,7 +78,7 @@ describe('buildProgram', () => {
     expect(commandNames).toContain('clean');
   });
 
-  it('should accept positional transcript path and session ID from CLI', async () => {
+  it('should spawn detached digest worker for positional transcript path and session ID from CLI', async () => {
     const program = buildProgram();
 
     await program.parseAsync([
@@ -78,6 +90,40 @@ describe('buildProgram', () => {
       'session-123',
     ]);
 
+    expect(runDigest).not.toHaveBeenCalled();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledWith(
+      process.execPath,
+      expect.arrayContaining([
+        'digest',
+        '/tmp/session.jsonl',
+        '--session-id',
+        'session-123',
+      ]),
+      expect.objectContaining({
+        detached: true,
+        stdio: 'ignore',
+        env: expect.objectContaining({
+          HARNESS_MEM_DIGEST_CHILD: '1',
+        }),
+      })
+    );
+  });
+
+  it('should execute digest inline when running in child mode', async () => {
+    process.env.HARNESS_MEM_DIGEST_CHILD = '1';
+    const program = buildProgram();
+
+    await program.parseAsync([
+      'node',
+      'harness-mem',
+      'digest',
+      '/tmp/session.jsonl',
+      '--session-id',
+      'session-123',
+    ]);
+
+    expect(spawn).not.toHaveBeenCalled();
     expect(runDigest).toHaveBeenCalledTimes(1);
     expect(runDigest).toHaveBeenCalledWith(expect.objectContaining({
       transcriptPath: '/tmp/session.jsonl',

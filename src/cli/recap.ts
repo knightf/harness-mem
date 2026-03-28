@@ -3,6 +3,7 @@ import { DigestStore } from '../storage/digest-store.js';
 import { parseDuration } from '../engine/utils.js';
 import { discoverUndigestedSessions } from './transcript-discovery.js';
 import { spawn } from 'child_process';
+import { DIGEST_CHILD_ENV } from './config.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,18 @@ export async function runRecap(options: RecapOptions): Promise<string> {
           process.argv[1] || 'harness-mem',
           'digest',
           session.filePath,
-        ], { detached: true, stdio: 'ignore' });
+          '--session-id',
+          session.sessionId,
+          '--digest-dir',
+          options.digestDir,
+        ], {
+          detached: true,
+          stdio: 'ignore',
+          env: {
+            ...process.env,
+            [DIGEST_CHILD_ENV]: '1',
+          },
+        });
         child.unref();
       }
       fallbackNote = `${undigested.length} session(s) being digested in the background.\n\n`;

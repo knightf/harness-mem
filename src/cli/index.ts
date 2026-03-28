@@ -2,9 +2,10 @@ import { Command } from 'commander';
 import { runDigest } from './digest.js';
 import { runRecap } from './recap.js';
 import { runClean } from './clean.js';
-import { loadConfig } from './config.js';
+import { DIGEST_CHILD_ENV, loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { createInterface } from 'readline';
+import { spawn } from 'child_process';
 
 // ─── parseStdinPayload ────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export function buildProgram(): Command {
       const logger = createLogger();
       const cliTranscriptPath = transcriptPathArg;
       const cliSessionId = typeof options.sessionId === 'string' ? options.sessionId : undefined;
+      const force = (options.force as boolean | undefined) ?? false;
 
       let payload: StdinPayload | null = null;
       if (!cliTranscriptPath || !cliSessionId) {
@@ -99,16 +101,46 @@ export function buildProgram(): Command {
 
       logger.info({ transcriptPath, sessionId }, 'digest: starting');
       try {
-        await runDigest({
+        if (process.env[DIGEST_CHILD_ENV] === '1') {
+          await runDigest({
+            transcriptPath,
+            sessionId,
+            digestDir: config.digestDir,
+            model: config.defaultModel,
+            provider: config.defaultProvider,
+            force,
+            logger,
+          });
+          logger.info({ sessionId }, 'digest: completed');
+          return;
+        }
+
+        const childArgs = [
+          process.argv[1] || 'harness-mem',
+          'digest',
           transcriptPath,
+          '--session-id',
           sessionId,
-          digestDir: config.digestDir,
-          model: config.defaultModel,
-          provider: config.defaultProvider,
-          force: (options.force as boolean | undefined) ?? false,
-          logger,
+          '--digest-dir',
+          config.digestDir,
+          '--model',
+          config.defaultModel,
+        ];
+
+        if (force) {
+          childArgs.push('--force');
+        }
+
+        const child = spawn(process.execPath, childArgs, {
+          detached: true,
+          stdio: 'ignore',
+          env: {
+            ...process.env,
+            [DIGEST_CHILD_ENV]: '1',
+          },
         });
-        logger.info({ sessionId }, 'digest: completed');
+        child.unref();
+        logger.info({ sessionId, pid: child.pid }, 'digest: spawned detached worker');
       } catch (err) {
         logger.error({ err, sessionId }, 'digest: failed');
         throw err;
