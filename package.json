@@ -1,0 +1,37 @@
+{
+  "name": "harness-mem",
+  "version": "0.1.0",
+  "description": "Agent session memory CLI — analyzes session logs and produces human-readable summaries",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "harness-mem": "./bin/harness-mem.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "node bin/harness-mem.js"
+  },
+  "keywords": [
+    "claude-code",
+    "agent",
+    "session",
+    "memory",
+    "cli"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
+    "ai": "^4.0.0",
+    "commander": "^13.0.0",
+    "dayjs": "^1.11.20"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}
