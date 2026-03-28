@@ -21,6 +21,14 @@ export interface DigestOptions {
 export async function runDigest(options: DigestOptions): Promise<void> {
   const { transcriptPath, sessionId, digestDir, model, provider, force = false } = options;
 
+  // 0. Validate required input
+  if (!transcriptPath) {
+    throw new Error('No transcript path provided. Pass a path as argument or pipe hook JSON via stdin.');
+  }
+  if (!sessionId) {
+    throw new Error('No session ID provided. Pass a transcript file (session ID is extracted from filename) or pipe hook JSON via stdin.');
+  }
+
   // 1. Create DigestStore
   const store = new DigestStore(digestDir);
 

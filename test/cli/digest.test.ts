@@ -87,4 +87,24 @@ describe('runDigest', () => {
     const files = await fs.readdir(tmpDigestDir);
     expect(files.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('should throw when transcriptPath is empty', async () => {
+    await expect(runDigest({
+      transcriptPath: '',
+      sessionId: 'test',
+      digestDir: tmpDigestDir,
+      model: 'haiku',
+      provider: 'anthropic',
+    })).rejects.toThrow('No transcript path provided');
+  });
+
+  it('should throw when sessionId is empty', async () => {
+    await expect(runDigest({
+      transcriptPath: fixturePath,
+      sessionId: '',
+      digestDir: tmpDigestDir,
+      model: 'haiku',
+      provider: 'anthropic',
+    })).rejects.toThrow('No session ID provided');
+  });
 });
