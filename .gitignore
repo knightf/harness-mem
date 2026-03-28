@@ -3,3 +3,5 @@ dist/
 *.js.map
 .env
 test/fixtures/traces/real-session.jsonl
+.claude/
+docs/superpowers
