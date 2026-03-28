@@ -62,7 +62,6 @@ Reads saved digests and prints a briefing to stdout.
    - Compare transcript session IDs against existing digests in the digest directory
    - Only consider transcripts created within the `recap.since` time window (default 24h)
    - Cap at 10 undigested sessions (configurable via `recap.maxFallbackDigests`) to avoid burst processing
-   - Skip active sessions (check PIDs in `~/.claude/sessions/`)
    - Spawn `harness-mem digest` as a detached background process for each undigested transcript
    - Print a note: "N sessions are being digested in the background."
 2. Read digest files, filter by time window, sort newest-first
@@ -73,8 +72,6 @@ Reads saved digests and prints a briefing to stdout.
 - `--since <duration>` — Time window (default: `24h`)
 - `--max-length <chars>` — Character limit for concatenated output (default: `20000`)
 - `--no-limit` — No character limit
-- `--synthesize` — Use LLM to synthesize multiple digests into one coherent briefing (not default)
-- `--no-llm` — Explicitly disable any LLM calls (same as default, for clarity)
 - `--digest-dir <path>` — Override digest directory
 
 **Performance:** The default path is sync file reads and string concatenation only — no LLM calls, no network. Should complete well under a second.
@@ -120,7 +117,7 @@ At the end of replay, the scope chain resolves what's still relevant — the sur
 
 Takes the resolved scope and calls an LLM to produce the human-readable summary. The prompt provides the structured analysis (retained entries, side effects, frame boundaries, decay scores) and asks for the "handoff note" style output.
 
-Uses the Vercel AI SDK (`ai` package) with provider plugins. Default provider: `@ai-sdk/anthropic`. Users can configure alternative providers (OpenAI, Google, etc.) via config.
+Uses the Vercel AI SDK (`ai` package) with a dynamic provider registry. Ships with `@ai-sdk/anthropic` as the default. Users can configure alternative providers by installing the corresponding SDK package (e.g., `npm install @ai-sdk/openai`) and setting `defaultProvider: "openai"` in config. Missing providers fail gracefully with an install instruction.
 
 #### 4. CLI
 
@@ -255,8 +252,9 @@ Claude Code stores session transcripts at `~/.claude/projects/<mangled-project-p
 3. Extract session UUID from filename (the filename without `.jsonl` extension)
 4. Compare against existing digests by session ID
 5. Filter by file creation time within the configured `recap.since` window
-6. Skip transcripts for active sessions (cross-reference PIDs in `~/.claude/sessions/*.json`)
-7. Cap at `recap.maxFallbackDigests` (default 10) sessions
+6. Cap at `recap.maxFallbackDigests` (default 10) sessions
+
+Note: No active session PID check. If an in-progress session gets digested, the incomplete digest is harmless — it gets overwritten when that session ends via SessionEnd, and idempotency by session ID prevents duplicates.
 
 **JSONL transcript line schema (fields we consume):**
 - `type` — `"user"`, `"assistant"`, `"progress"`, `"file-history-snapshot"`
@@ -272,7 +270,7 @@ Sub-agent transcripts at `<session-uuid>/subagents/agent-<id>.jsonl` are include
 This is a clean rewrite (Approach B) within the existing repository:
 - Rename package from `harness` to `harness-mem` in `package.json`
 - Replace `src/` with the new module structure
-- Update dependencies: add `ai`, `@ai-sdk/anthropic`, `commander`; remove `@anthropic-ai/sdk`
+- Update dependencies: add `ai`, `@ai-sdk/anthropic`, `commander`; remove `@anthropic-ai/sdk`, `uuid`
 - Keep `docs/` — design specs document the project's evolution
 - Original code preserved in git history
 

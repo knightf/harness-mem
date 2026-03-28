@@ -51,12 +51,10 @@ rm -rf src/ test/
   "dependencies": {
     "ai": "^4.0.0",
     "@ai-sdk/anthropic": "^1.0.0",
-    "commander": "^13.0.0",
-    "uuid": "^13.0.0"
+    "commander": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
-    "@types/uuid": "^11.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
@@ -313,7 +311,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Write the utils module**
 
-Port `generateId` (uuid v4), `normalizePath` (path.resolve + lowercase), `estimateTokens` (string.length / 4, ceil). Add `parseDuration` that parses `Nm`, `Nh`, `Nd` into milliseconds.
+Port `generateId` (using native `crypto.randomUUID()` — no uuid package needed), `normalizePath` (path.resolve + lowercase), `estimateTokens` (string.length / 4, ceil). Add `parseDuration` that parses `Nm`, `Nh`, `Nd` into milliseconds.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1316,17 +1314,29 @@ Expected: FAIL
 
 - [ ] **Step 5: Write the summarizer module**
 
-`Summarizer` class, constructor takes `{ model, provider }`. Uses Vercel AI SDK:
+`Summarizer` class, constructor takes `{ model, provider }`. Uses Vercel AI SDK with a provider registry for dynamic provider resolution:
+
 ```typescript
 import { generateText } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+
+// Provider registry — maps provider name to dynamic import
+const PROVIDER_REGISTRY: Record<string, () => Promise<any>> = {
+  anthropic: async () => (await import('@ai-sdk/anthropic')).anthropic,
+  openai: async () => (await import('@ai-sdk/openai')).openai,
+  google: async () => (await import('@ai-sdk/google')).google,
+};
 ```
 
-Method `summarize(resolved: ResolvedContext)`: Build a prompt that includes:
-- List of retained context entries (grouped by frame/boundary)
-- List of side effects (files created/modified/deleted, commands run)
-- Frame boundary information
-- Instructions for the "handoff note" format (What you worked on, What changed, Decisions made, Still open)
+The registry uses dynamic `import()` so missing provider packages fail with a clear error message (e.g., "Provider 'openai' requires @ai-sdk/openai — install it with: npm install @ai-sdk/openai") rather than crashing at startup. Only `@ai-sdk/anthropic` ships as a dependency; other providers are opt-in.
+
+Method `summarize(resolved: ResolvedContext)`:
+1. Look up provider in registry, dynamic-import the SDK, get the model factory
+2. Build a prompt that includes:
+   - List of retained context entries (grouped by frame/boundary)
+   - List of side effects (files created/modified/deleted, commands run)
+   - Frame boundary information
+   - Instructions for the "handoff note" format (What you worked on, What changed, Decisions made, Still open)
+3. Call `generateText({ model: providerFactory(modelName), prompt })`
 
 Returns the LLM's response text.
 
@@ -1901,7 +1911,7 @@ Expected: FAIL
 
 Using commander:
 - `harness-mem digest [path]` — flags: `--digest-dir`, `--model`, `--force`
-- `harness-mem recap` — flags: `--since`, `--max-length`, `--no-limit`, `--synthesize`, `--no-llm`, `--digest-dir`
+- `harness-mem recap` — flags: `--since`, `--max-length`, `--no-limit`, `--digest-dir`
 - `harness-mem clean` — flags: `--older-than`, `--before`, `--dry-run`
 
 `parseStdinPayload(raw)`: Try JSON.parse, extract `session_id` → `sessionId`, `transcript_path` → `transcriptPath`. Return null on failure.
@@ -2149,8 +2159,9 @@ Expected: FAIL
 3. Extract session ID from filename (strip `.jsonl`)
 4. Check file mtime — skip if older than `sinceMs`
 5. Check `DigestStore.exists(sessionId)` — skip if already digested
-6. Skip active sessions: read `~/.claude/sessions/*.json`, extract PIDs, check if process is running
-7. Return up to `maxSessions` results as `{ sessionId, transcriptPath, projectDir }[]`
+6. Return up to `maxSessions` results as `{ sessionId, transcriptPath, projectDir }[]`
+
+Note: No active session PID check. If an in-progress session gets digested, the incomplete digest is harmless — it gets overwritten when that session ends and triggers SessionEnd, and the idempotency check by session ID prevents duplicates.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -2185,6 +2196,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
+// Mock spawn at top level — Vitest hoists vi.mock calls
+vi.mock('child_process', () => ({
+  spawn: vi.fn().mockReturnValue({ unref: vi.fn() }),
+}));
+
 let tmpDigestDir: string;
 let tmpTranscriptDir: string;
 
@@ -2207,11 +2223,6 @@ describe('Recap with Fallback', () => {
       path.join(projectDir, 'undigested-session.jsonl'),
       '{"type":"user","timestamp":"' + new Date().toISOString() + '","sessionId":"undigested-session","message":{"role":"user","content":"hi"}}\n'
     );
-
-    // Mock spawn to avoid actually running digest
-    vi.mock('child_process', () => ({
-      spawn: vi.fn().mockReturnValue({ unref: vi.fn() }),
-    }));
 
     const output = await runRecap({
       digestDir: tmpDigestDir,
