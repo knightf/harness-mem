@@ -1,3 +1,4 @@
+import type { Logger } from 'pino';
 import { DigestStore } from '../storage/digest-store.js';
 import { parseDuration } from '../engine/utils.js';
 import { discoverUndigestedSessions } from './transcript-discovery.js';
@@ -11,11 +12,14 @@ interface RecapOptions {
   maxLength: number;
   transcriptDir?: string;
   maxFallbackDigests?: number;
+  logger?: Logger;
 }
 
 // ─── runRecap ─────────────────────────────────────────────────────────────────
 
 export async function runRecap(options: RecapOptions): Promise<string> {
+  const { logger } = options;
+
   // Fallback: discover and spawn background digests for undigested sessions
   let fallbackNote = '';
   if (options.transcriptDir) {
@@ -27,6 +31,7 @@ export async function runRecap(options: RecapOptions): Promise<string> {
     });
 
     if (undigested.length > 0) {
+      logger?.info({ count: undigested.length }, 'spawning background digest processes');
       for (const session of undigested) {
         const child = spawn(process.execPath, [
           process.argv[1] || 'harness-mem',
@@ -42,6 +47,7 @@ export async function runRecap(options: RecapOptions): Promise<string> {
   const store = new DigestStore(options.digestDir);
 
   const entries = await store.query({ since: parseDuration(options.since) });
+  logger?.debug({ entryCount: entries.length, since: options.since }, 'queried digests');
 
   if (entries.length === 0) {
     return fallbackNote || 'No recent sessions found.';
