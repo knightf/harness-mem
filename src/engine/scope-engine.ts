@@ -162,6 +162,11 @@ export class ScopeEngine {
     return this.frameStack.length;
   }
 
+  /** Return a copy of the full frame stack. */
+  getFrames(): ContextFrame[] {
+    return [...this.frameStack];
+  }
+
   /** Return all entries from the registry. */
   getEntries(): ContextEntry[] {
     return Array.from(this.entryRegistry.values());

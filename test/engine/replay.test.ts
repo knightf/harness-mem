@@ -68,6 +68,7 @@ describe('ReplayIterator', () => {
     const iterator = new ReplayIterator(events, engine, detector);
 
     const result = await iterator.runAll();
-    expect(result.frames.length).toBeGreaterThan(0);
+    // Root frame + at least one boundary push (Read → Edit tool switch)
+    expect(result.frames.length).toBeGreaterThan(1);
   });
 });

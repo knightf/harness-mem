@@ -115,17 +115,8 @@ export class ReplayIterator {
       await this.next();
     }
 
-    // Collect frames from the engine
-    const frames: ReplayResult['frames'] = [];
-    const frameCount = this.engine.getFrameCount();
-    // We can only access getCurrentFrame(), but we need all frames.
-    // Use getEntries() to reconstruct frame info indirectly — or just
-    // expose them via the engine. For now, push current frame at minimum.
-    // Actually, the test just checks frames.length > 0.
-    frames.push(this.engine.getCurrentFrame());
-
     return {
-      frames,
+      frames: this.engine.getFrames(),
       resolutions: this.resolutions,
       sideEffects: this.sideEffects,
       timeline: [],
