@@ -13,7 +13,9 @@ export function generateId(): string {
  */
 export function normalizePath(p: string, cwd?: string): string {
   const resolved = path.resolve(cwd || process.cwd(), p);
-  return resolved.replace(/\\/g, '/').toLowerCase();
+  const normalized = resolved.replace(/\\/g, '/');
+  // Only lowercase on case-insensitive filesystems (Windows)
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { generateId } from './utils.js';
+import { RESOLVE_ALL_BUDGET } from './constants.js';
 import type { ScopeEngine } from './scope-engine.js';
 import type { ToolClusterDetector } from './boundary.js';
 import type {
@@ -96,7 +97,7 @@ export class ReplayIterator {
 
     // Record resolution at user-message and tool-result events
     if (event.type === 'user-message' || event.type === 'tool-result') {
-      const resolved = this.engine.resolve(100000);
+      const resolved = this.engine.resolve(RESOLVE_ALL_BUDGET);
       this.resolutions.push(resolved);
     }
 
@@ -106,7 +107,7 @@ export class ReplayIterator {
 
   /** Resolve the current scope (large budget snapshot). */
   inspect(): ResolvedContext {
-    return this.engine.resolve(100000);
+    return this.engine.resolve(RESOLVE_ALL_BUDGET);
   }
 
   /** Process all remaining events and return the replay result. */

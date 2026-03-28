@@ -1,3 +1,4 @@
+import { RESOLVE_ALL_BUDGET } from '../engine/constants.js';
 import { TraceParser } from '../parser/trace-parser.js';
 import { ScopeEngine } from '../engine/scope-engine.js';
 import { ToolClusterDetector } from '../engine/boundary.js';
@@ -66,7 +67,7 @@ export async function runDigest(options: DigestOptions): Promise<void> {
   await iterator.runAll();
 
   // 9. Resolve context with a large budget to capture everything for summarization
-  const resolved = engine.resolve(100000);
+  const resolved = engine.resolve(RESOLVE_ALL_BUDGET);
 
   // 10. Summarize via LLM
   const summarizer = new Summarizer({ model, provider });

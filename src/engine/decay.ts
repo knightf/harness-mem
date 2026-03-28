@@ -24,15 +24,15 @@ export class DecayEngine {
    * @param frameIndex   - Index of the current frame (used for 'step' strategy).
    * @param isAbandoned  - Whether the entry's frame has been abandoned.
    */
-  score(entry: ContextEntry, frameIndex: number, isAbandoned = false): number {
-    const raw = this._baseScore(entry, frameIndex);
-    const boosted = this._applyAccessBoost(raw, entry);
+  score(entry: ContextEntry, frameIndex: number, isAbandoned = false, now?: number): number {
+    const raw = this._baseScore(entry, frameIndex, now);
+    const boosted = this._applyAccessBoost(raw, entry, now);
     return isAbandoned ? boosted * ABANDONED_PENALTY : boosted;
   }
 
-  private _baseScore(entry: ContextEntry, frameIndex: number): number {
+  private _baseScore(entry: ContextEntry, frameIndex: number, now?: number): number {
     const { strategy, halfLife, retainUntil, customScorer } = entry.decayPolicy;
-    const age = Date.now() - entry.createdAt;
+    const age = (now ?? Date.now()) - entry.createdAt;
 
     switch (strategy) {
       case 'none':
@@ -60,7 +60,7 @@ export class DecayEngine {
     }
   }
 
-  private _applyAccessBoost(baseScore: number, entry: ContextEntry): number {
+  private _applyAccessBoost(baseScore: number, entry: ContextEntry, now?: number): number {
     if (!entry.accessLog) return baseScore;
 
     const { lastAccessed, accessCount } = entry.accessLog;
@@ -69,7 +69,7 @@ export class DecayEngine {
     const frequencyBoost = Math.log2(1 + accessCount) * 0.05;
 
     // Recency boost: entries accessed within the last 5 seconds get a small bump.
-    const recencyMs = Date.now() - lastAccessed;
+    const recencyMs = (now ?? Date.now()) - lastAccessed;
     const recencyBoost = recencyMs < 5000 ? 0.1 : recencyMs < 30000 ? 0.05 : 0;
 
     return Math.min(1.0, baseScore + frequencyBoost + recencyBoost);

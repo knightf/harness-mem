@@ -20,9 +20,18 @@ describe('normalizePath', () => {
     expect(result).toContain('src/foo.ts');
   });
 
-  it('should lowercase for case-insensitive comparison', () => {
+  it('should lowercase on Windows for case-insensitive comparison', () => {
     const result = normalizePath('/Home/User/File.ts');
-    expect(result).toBe(result.toLowerCase());
+    if (process.platform === 'win32') {
+      expect(result).toBe(result.toLowerCase());
+    } else {
+      expect(result).toContain('File.ts'); // preserves case on Linux/macOS
+    }
+  });
+
+  it('should use forward slashes', () => {
+    const result = normalizePath('src\\foo.ts', '/project');
+    expect(result).not.toContain('\\');
   });
 });
 

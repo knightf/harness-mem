@@ -3,7 +3,6 @@ import { runDigest } from './digest.js';
 import { runRecap } from './recap.js';
 import { runClean } from './clean.js';
 import { loadConfig } from './config.js';
-import { readFileSync } from 'fs';
 import { createInterface } from 'readline';
 
 // ─── parseStdinPayload ────────────────────────────────────────────────────────
@@ -41,6 +40,8 @@ export function parseStdinPayload(raw: string): StdinPayload | null {
 
 // ─── readStdin ────────────────────────────────────────────────────────────────
 
+const STDIN_TIMEOUT_MS = 5000;
+
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) {
     return '';
@@ -49,8 +50,15 @@ async function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     const chunks: string[] = [];
     const rl = createInterface({ input: process.stdin });
+    const timeout = setTimeout(() => {
+      rl.close();
+      resolve(chunks.join('\n'));
+    }, STDIN_TIMEOUT_MS);
     rl.on('line', (line) => chunks.push(line));
-    rl.on('close', () => resolve(chunks.join('\n')));
+    rl.on('close', () => {
+      clearTimeout(timeout);
+      resolve(chunks.join('\n'));
+    });
   });
 }
 
