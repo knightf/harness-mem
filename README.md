@@ -38,7 +38,7 @@ Analyze a session transcript and write a summary digest.
 
 ```bash
 # Manual: pass a transcript file path
-harness-mem digest path/to/session.jsonl
+harness-mem digest path/to/session.jsonl --session-id abc
 
 # As a hook: reads session_id and transcript_path from stdin JSON
 echo '{"session_id":"abc","transcript_path":"path/to/session.jsonl"}' | harness-mem digest
