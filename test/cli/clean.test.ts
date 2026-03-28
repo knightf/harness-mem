@@ -41,6 +41,23 @@ describe('runClean', () => {
     expect(files.length).toBe(1);
   });
 
+  it('should delete digests before a specific date', async () => {
+    await store.write({
+      sessionId: 'before-cutoff', timestamp: '2026-02-01T00:00:00Z',
+      durationMinutes: 10, model: 'haiku', workingDirectory: '/project',
+    }, 'Before cutoff');
+    await store.write({
+      sessionId: 'after-cutoff', timestamp: '2026-03-15T00:00:00Z',
+      durationMinutes: 10, model: 'haiku', workingDirectory: '/project',
+    }, 'After cutoff');
+
+    const result = await runClean({ digestDir: tmpDir, olderThan: '999d', before: '2026-03-01T00:00:00Z' });
+    expect(result.deleted).toBe(1);
+
+    const files = await fs.readdir(tmpDir);
+    expect(files.length).toBe(1);
+  });
+
   it('should not delete recent digests', async () => {
     await store.write({
       sessionId: 'recent', timestamp: new Date().toISOString(),

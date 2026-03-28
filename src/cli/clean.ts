@@ -22,6 +22,7 @@ export async function runClean(options: CleanOptions): Promise<CleanResult> {
 
   const count = await store.clean({
     olderThanMs: parseDuration(options.olderThan),
+    beforeDate: options.before ? new Date(options.before) : undefined,
     dryRun: options.dryRun,
   });
 
