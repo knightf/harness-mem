@@ -1,4 +1,6 @@
 import fs from 'fs/promises';
+import { createReadStream } from 'fs';
+import { createInterface } from 'readline';
 import path from 'path';
 import { DigestStore } from '../storage/digest-store.js';
 
@@ -32,23 +34,23 @@ export interface DiscoverOptions {
  *  - The last non-empty line has `"type":"progress"`
  */
 export async function isSessionComplete(filePath: string): Promise<boolean> {
-  let content: string;
+  // Stream through the file keeping only the last 5 non-empty lines in memory
+  const tail: string[] = [];
   try {
-    content = await fs.readFile(filePath, 'utf-8');
+    const rl = createInterface({ input: createReadStream(filePath, 'utf-8') });
+    for await (const line of rl) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) continue;
+      tail.push(trimmed);
+      if (tail.length > 5) tail.shift();
+    }
   } catch {
     return false;
   }
 
-  const lines = content
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  if (lines.length === 0) {
+  if (tail.length === 0) {
     return false;
   }
-
-  const tail = lines.slice(-5);
 
   // Check for last-prompt marker
   if (tail.some((l) => l.includes('"type":"last-prompt"'))) {
@@ -68,7 +70,7 @@ export async function isSessionComplete(filePath: string): Promise<boolean> {
   }
 
   // Check if still in-progress
-  const lastLine = lines[lines.length - 1];
+  const lastLine = tail[tail.length - 1];
   if (lastLine.includes('"type":"progress"')) {
     return false;
   }
