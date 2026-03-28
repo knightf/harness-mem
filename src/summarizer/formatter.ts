@@ -21,7 +21,7 @@ export function formatDigest(metadata: DigestMetadata, body: string): string {
  * Parses a digest markdown string back into metadata and body.
  */
 export function parseDigest(content: string): { metadata: DigestMetadata; body: string } {
-  const parts = content.split('---');
+  const parts = content.split(/^---\s*$/m);
   // parts[0] is empty (before first ---), parts[1] is frontmatter, parts[2+] is body
   if (parts.length < 3) {
     throw new Error('Invalid digest format: missing YAML frontmatter');
