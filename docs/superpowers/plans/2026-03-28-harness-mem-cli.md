@@ -2084,13 +2084,52 @@ beforeEach(async () => {
   await fs.mkdir(projectDir, { recursive: true });
   await fs.writeFile(
     path.join(projectDir, 'aaaa-bbbb-cccc-dddd.jsonl'),
-    '{"type":"user","timestamp":"2026-03-28T10:00:00Z","sessionId":"aaaa-bbbb-cccc-dddd","message":{"role":"user","content":"hello"}}\n'
+    '{"type":"user","timestamp":"2026-03-28T10:00:00Z","sessionId":"aaaa-bbbb-cccc-dddd","message":{"role":"user","content":"hello"}}\n{"type":"last-prompt","lastPrompt":"hello","sessionId":"aaaa-bbbb-cccc-dddd"}\n'
   );
 });
 
 afterEach(async () => {
   await fs.rm(tmpTranscriptDir, { recursive: true, force: true });
   await fs.rm(tmpDigestDir, { recursive: true, force: true });
+});
+
+describe('isSessionComplete', () => {
+  it('should return true when last line is last-prompt', async () => {
+    const projectDir = path.join(tmpTranscriptDir, 'C--Users-Eric-Repos-project');
+    const filePath = path.join(projectDir, 'complete-session.jsonl');
+    await fs.writeFile(filePath, [
+      '{"type":"user","sessionId":"complete-session","message":{"role":"user","content":"hi"}}',
+      '{"type":"assistant","sessionId":"complete-session","message":{"role":"assistant","content":"hello"}}',
+      '{"type":"last-prompt","lastPrompt":"hi","sessionId":"complete-session"}',
+    ].join('\n') + '\n');
+
+    const { isSessionComplete } = await import('../src/cli/transcript-discovery.js');
+    expect(await isSessionComplete(filePath)).toBe(true);
+  });
+
+  it('should return true when session has /exit farewell', async () => {
+    const projectDir = path.join(tmpTranscriptDir, 'C--Users-Eric-Repos-project');
+    const filePath = path.join(projectDir, 'exited-session.jsonl');
+    await fs.writeFile(filePath, [
+      '{"type":"user","sessionId":"exited-session","message":{"role":"user","content":"hi"}}',
+      '{"type":"user","sessionId":"exited-session","message":{"role":"user","content":[{"type":"text","text":"<local-command-stdout>Goodbye!</local-command-stdout>"}]}}',
+    ].join('\n') + '\n');
+
+    const { isSessionComplete } = await import('../src/cli/transcript-discovery.js');
+    expect(await isSessionComplete(filePath)).toBe(true);
+  });
+
+  it('should return false when last line is progress', async () => {
+    const projectDir = path.join(tmpTranscriptDir, 'C--Users-Eric-Repos-project');
+    const filePath = path.join(projectDir, 'active-session.jsonl');
+    await fs.writeFile(filePath, [
+      '{"type":"user","sessionId":"active-session","message":{"role":"user","content":"hi"}}',
+      '{"type":"progress","sessionId":"active-session"}',
+    ].join('\n') + '\n');
+
+    const { isSessionComplete } = await import('../src/cli/transcript-discovery.js');
+    expect(await isSessionComplete(filePath)).toBe(false);
+  });
 });
 
 describe('discoverUndigestedSessions', () => {
@@ -2131,7 +2170,7 @@ describe('discoverUndigestedSessions', () => {
       const id = `sess-${i.toString().padStart(4, '0')}-0000-0000`;
       await fs.writeFile(
         path.join(projectDir, `${id}.jsonl`),
-        `{"type":"user","timestamp":"2026-03-28T10:00:00Z","sessionId":"${id}","message":{"role":"user","content":"hi"}}\n`
+        `{"type":"user","timestamp":"2026-03-28T10:00:00Z","sessionId":"${id}","message":{"role":"user","content":"hi"}}\n{"type":"last-prompt","lastPrompt":"hi","sessionId":"${id}"}\n`
       );
     }
 
@@ -2159,9 +2198,8 @@ Expected: FAIL
 3. Extract session ID from filename (strip `.jsonl`)
 4. Check file mtime — skip if older than `sinceMs`
 5. Check `DigestStore.exists(sessionId)` — skip if already digested
-6. Return up to `maxSessions` results as `{ sessionId, transcriptPath, projectDir }[]`
-
-Note: No active session PID check. If an in-progress session gets digested, the incomplete digest is harmless — it gets overwritten when that session ends and triggers SessionEnd, and the idempotency check by session ID prevents duplicates.
+6. Check session completion: read the last ~5 lines of the JSONL file using `isSessionComplete()`. Only include sessions where the tail contains `"type": "last-prompt"` or an `/exit` farewell pattern. Skip files ending in `"type": "progress"` or lacking these markers.
+7. Return up to `maxSessions` results as `{ sessionId, transcriptPath, projectDir }[]`
 
 - [ ] **Step 4: Run test to verify it passes**
 

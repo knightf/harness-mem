@@ -252,9 +252,8 @@ Claude Code stores session transcripts at `~/.claude/projects/<mangled-project-p
 3. Extract session UUID from filename (the filename without `.jsonl` extension)
 4. Compare against existing digests by session ID
 5. Filter by file creation time within the configured `recap.since` window
-6. Cap at `recap.maxFallbackDigests` (default 10) sessions
-
-Note: No active session PID check. If an in-progress session gets digested, the incomplete digest is harmless — it gets overwritten when that session ends via SessionEnd, and idempotency by session ID prevents duplicates.
+6. Skip incomplete sessions by checking the tail of the JSONL file: only process transcripts where the last entries contain `"type": "last-prompt"` or an `/exit` farewell pattern — these indicate the session reached a quiescent/closed state. Skip transcripts ending in `"type": "progress"` or lacking these markers (likely still active or abnormally terminated).
+7. Cap at `recap.maxFallbackDigests` (default 10) sessions
 
 **JSONL transcript line schema (fields we consume):**
 - `type` — `"user"`, `"assistant"`, `"progress"`, `"file-history-snapshot"`
