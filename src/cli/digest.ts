@@ -1,3 +1,4 @@
+import type { Logger } from 'pino';
 import { RESOLVE_ALL_BUDGET } from '../engine/constants.js';
 import { TraceParser } from '../parser/trace-parser.js';
 import { ScopeEngine } from '../engine/scope-engine.js';
@@ -15,12 +16,13 @@ export interface DigestOptions {
   model: string;
   provider: string;
   force?: boolean;
+  logger?: Logger;
 }
 
 // ─── runDigest ────────────────────────────────────────────────────────────────
 
 export async function runDigest(options: DigestOptions): Promise<void> {
-  const { transcriptPath, sessionId, digestDir, model, provider, force = false } = options;
+  const { transcriptPath, sessionId, digestDir, model, provider, force = false, logger } = options;
 
   // 0. Validate required input
   if (!transcriptPath) {
@@ -35,15 +37,18 @@ export async function runDigest(options: DigestOptions): Promise<void> {
 
   // 2. Check if digest already exists for this session
   if (!force && (await store.exists(sessionId))) {
+    logger?.debug({ sessionId }, 'digest already exists, skipping');
     return;
   }
 
   // 3. Parse transcript
   const parser = new TraceParser();
   const raw = await parser.parseRaw(transcriptPath);
+  logger?.debug({ transcriptPath, lineCount: raw.length }, 'parsed transcript');
 
   // 4. Decompose into structured trace events
   const events = parser.decompose(raw);
+  logger?.debug({ eventCount: events.length }, 'decomposed trace events');
 
   // 5. Extract metadata (startTime, endTime, cwd, etc.)
   const traceMeta = parser.extractMetadata(raw);
@@ -68,10 +73,13 @@ export async function runDigest(options: DigestOptions): Promise<void> {
 
   // 9. Resolve context with a large budget to capture everything for summarization
   const resolved = engine.resolve(RESOLVE_ALL_BUDGET);
+  logger?.debug({ entryCount: resolved.entries.length, artifactCount: resolved.artifacts.length }, 'resolved context');
 
   // 10. Summarize via LLM
+  logger?.info({ model, provider }, 'calling LLM for summarization');
   const summarizer = new Summarizer({ model, provider });
   const summary = await summarizer.summarize(resolved);
+  logger?.info({ summaryLength: summary.length }, 'LLM summarization complete');
 
   // 11. Build digest metadata
   const digestMeta = {
@@ -84,4 +92,5 @@ export async function runDigest(options: DigestOptions): Promise<void> {
 
   // 12. Write digest to store
   await store.write(digestMeta, summary);
+  logger?.info({ sessionId, digestDir }, 'digest written');
 }

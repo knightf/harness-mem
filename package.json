@@ -35,7 +35,8 @@
     "@ai-sdk/anthropic": "^1.0.0",
     "ai": "^4.0.0",
     "commander": "^13.0.0",
-    "dayjs": "^1.11.20"
+    "dayjs": "^1.11.20",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",

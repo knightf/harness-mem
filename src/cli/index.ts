@@ -3,6 +3,7 @@ import { runDigest } from './digest.js';
 import { runRecap } from './recap.js';
 import { runClean } from './clean.js';
 import { loadConfig } from './config.js';
+import { createLogger } from './logger.js';
 import { createInterface } from 'readline';
 
 // ─── parseStdinPayload ────────────────────────────────────────────────────────
@@ -83,6 +84,7 @@ export function buildProgram(): Command {
     .option('--force', 'Overwrite existing digest', false)
     .action(async (transcriptPathArg: string | undefined, options: DigestCommandOptions) => {
       const config = await loadConfig({ flags: options });
+      const logger = createLogger();
       const cliTranscriptPath = transcriptPathArg;
       const cliSessionId = typeof options.sessionId === 'string' ? options.sessionId : undefined;
 
@@ -95,14 +97,22 @@ export function buildProgram(): Command {
       const transcriptPath = cliTranscriptPath ?? payload?.transcriptPath ?? '';
       const sessionId = cliSessionId ?? payload?.sessionId ?? '';
 
-      await runDigest({
-        transcriptPath,
-        sessionId,
-        digestDir: config.digestDir,
-        model: config.defaultModel,
-        provider: config.defaultProvider,
-        force: (options.force as boolean | undefined) ?? false,
-      });
+      logger.info({ transcriptPath, sessionId }, 'digest: starting');
+      try {
+        await runDigest({
+          transcriptPath,
+          sessionId,
+          digestDir: config.digestDir,
+          model: config.defaultModel,
+          provider: config.defaultProvider,
+          force: (options.force as boolean | undefined) ?? false,
+          logger,
+        });
+        logger.info({ sessionId }, 'digest: completed');
+      } catch (err) {
+        logger.error({ err, sessionId }, 'digest: failed');
+        throw err;
+      }
     });
 
   program
@@ -114,6 +124,7 @@ export function buildProgram(): Command {
     .option('--digest-dir <dir>', 'Directory to read digests from')
     .action(async (options: Record<string, unknown>) => {
       const config = await loadConfig({ flags: options });
+      const logger = createLogger();
 
       const maxLength = options.limit === false
         ? Number.MAX_SAFE_INTEGER
@@ -121,11 +132,14 @@ export function buildProgram(): Command {
           ? parseInt(options.maxLength, 10)
           : config.recap.maxLength;
 
+      logger.info({ since: typeof options.since === 'string' ? options.since : config.recap.since }, 'recap: starting');
       const result = await runRecap({
         digestDir: config.digestDir,
         since: typeof options.since === 'string' ? options.since : config.recap.since,
         maxLength,
+        logger,
       });
+      logger.info('recap: completed');
 
       process.stdout.write(result + '\n');
     });
@@ -138,17 +152,22 @@ export function buildProgram(): Command {
     .option('--dry-run', 'Show what would be deleted without deleting', false)
     .action(async (options: Record<string, unknown>) => {
       const config = await loadConfig({ flags: options });
+      const logger = createLogger();
 
+      logger.info({ dryRun: options.dryRun }, 'clean: starting');
       const result = await runClean({
         digestDir: config.digestDir,
         olderThan: typeof options.olderThan === 'string' ? options.olderThan : config.clean.olderThan,
         before: typeof options.before === 'string' ? options.before : undefined,
         dryRun: (options.dryRun as boolean | undefined) ?? false,
+        logger,
       });
 
       if (options.dryRun) {
+        logger.info({ wouldDelete: result.wouldDelete }, 'clean: dry run completed');
         process.stdout.write(`Would delete ${result.wouldDelete} digest(s).\n`);
       } else {
+        logger.info({ deleted: result.deleted }, 'clean: completed');
         process.stdout.write(`Deleted ${result.deleted} digest(s).\n`);
       }
     });
