@@ -46,8 +46,21 @@ describe('Recap with Fallback', () => {
     // Verify spawn was called with the correct transcript path (not undefined)
     const { spawn } = await import('child_process');
     expect(spawn).toHaveBeenCalled();
-    const spawnArgs = (spawn as any).mock.calls[0][1];
+    const spawnCall = (spawn as any).mock.calls[0];
+    const spawnArgs = spawnCall[1];
+    const spawnOptions = spawnCall[2];
     expect(spawnArgs.some((arg: string) => arg.includes('undigested-session.jsonl'))).toBe(true);
+    expect(spawnArgs).toContain('--session-id');
+    expect(spawnArgs).toContain('undigested-session');
+    expect(spawnArgs).toContain('--digest-dir');
+    expect(spawnArgs).toContain(tmpDigestDir);
+    expect(spawnOptions).toMatchObject({
+      detached: true,
+      stdio: 'ignore',
+      env: expect.objectContaining({
+        HARNESS_MEM_DIGEST_CHILD: '1',
+      }),
+    });
   });
 
   it('should show existing digests alongside fallback note', async () => {

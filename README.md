@@ -2,6 +2,9 @@
 
 A CLI tool that analyzes AI agent session logs and produces human-readable summaries. Hooks into Claude Code's session lifecycle to automatically capture what happened in each session and brief you when you return.
 
+[![NPM Version](https://nodei.co/npm/harness-mem.png)](https://npmjs.org/package/harness-mem)
+[![coverage](https://knightf.github.io/harness-mem/badges/master/coverage.svg)](https://knightf.github.io/harness-mem/badges/master/coverage.svg)
+
 ## The Problem
 
 Coming back to agent work after hours or days is disorienting. You lose the "why" behind decisions, the state of in-progress work, and the context that made the session productive. Git log tells you *what* changed but not *why* or *what was left open*.
@@ -28,7 +31,7 @@ Or run directly:
 npx harness-mem
 ```
 
-Requires an Anthropic API key set as `ANTHROPIC_API_KEY` environment variable.
+Requires an Anthropic API key set as `ANTHROPIC_API_KEY`, either in your shell environment or in `~/.harness-mem/.env`.
 
 ## Commands
 
@@ -141,6 +144,18 @@ Create `~/.harness-mem/config.json` for persistent settings:
 - `HARNESS_MEM_DIGEST_DIR`
 - `HARNESS_MEM_TRANSCRIPT_DIR`
 - `HARNESS_MEM_MODEL`
+- `ANTHROPIC_API_KEY`
+
+You can also create `~/.harness-mem/.env`:
+
+```env
+ANTHROPIC_API_KEY=your_api_key_here
+HARNESS_MEM_MODEL=claude-haiku-4-5-20251001
+```
+
+Values from `~/.harness-mem/.env` are loaded automatically at startup and inherited by child processes. Existing OS environment variables still take precedence over `.env` values.
+
+**Detailed precedence:** CLI flags > existing OS environment variables > `~/.harness-mem/.env` > config file > defaults
 
 ## Digest Format
 
