@@ -3,7 +3,7 @@
 export interface DecayPolicy {
   strategy: 'none' | 'linear' | 'step' | 'custom';
   halfLife?: number;
-  retainUntil?: string;
+  retainUntil?: string | number;
   customScorer?: (age: number, accessCount: number) => number;
 }
 
@@ -19,6 +19,7 @@ export interface ContextEntry {
   decayPolicy: DecayPolicy;
   references: string[];
   metadata: Record<string, unknown>;
+  accessLog?: { lastAccessed: number; accessCount: number };
 }
 
 export interface BoundarySignal {
