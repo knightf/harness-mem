@@ -33,6 +33,9 @@
   "license": "ISC",
   "dependencies": {
     "@ai-sdk/anthropic": "^1.0.0",
+    "@ai-sdk/google": "^3.0.53",
+    "@ai-sdk/moonshotai": "^2.0.12",
+    "@ai-sdk/openai": "^3.0.48",
     "ai": "^4.0.0",
     "commander": "^13.0.0",
     "dayjs": "^1.11.20",
