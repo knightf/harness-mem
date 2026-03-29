@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Summarizer } from '../../src/summarizer/summarizer.js';
 import type { ResolvedContext } from '../../src/engine/types.js';
-import { PROVIDER_REGISTRY } from '../../src/summarizer/providers.js';
 
 vi.mock('ai', () => ({
   generateText: vi.fn().mockResolvedValue({
@@ -57,18 +56,13 @@ describe('Summarizer', () => {
   });
 
   it('should throw if provider API key env var is not set', async () => {
-    const original = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
-    try {
-      const summarizer = new Summarizer({ provider: 'anthropic' });
-      const resolved: ResolvedContext = {
-        entries: [], artifacts: [],
-        totalTokens: 0, budget: 1000, droppedEntries: 0,
-      };
-      await expect(summarizer.summarize(resolved)).rejects.toThrow('ANTHROPIC_API_KEY');
-    } finally {
-      if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
-    }
+    const summarizer = new Summarizer({ provider: 'anthropic' });
+    const resolved: ResolvedContext = {
+      entries: [], artifacts: [],
+      totalTokens: 0, budget: 1000, droppedEntries: 0,
+    };
+    await expect(summarizer.summarize(resolved)).rejects.toThrow('ANTHROPIC_API_KEY');
   });
 
   it('should throw for unknown provider', async () => {
