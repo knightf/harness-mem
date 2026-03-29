@@ -1,4 +1,4 @@
-import type { HarnessMemConfig } from '../engine/types.js';
+import type { HarnessMemConfig, ProviderKey } from '../engine/types.js';
 import { parse as parseDotenv } from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
@@ -87,7 +87,7 @@ export async function loadConfig(options?: {
     config.defaultModel = process.env.HARNESS_MEM_MODEL;
   }
   if (process.env.HARNESS_MEM_PROVIDER) {
-    config.defaultProvider = process.env.HARNESS_MEM_PROVIDER;
+    config.defaultProvider = process.env.HARNESS_MEM_PROVIDER as ProviderKey;
   }
 
   // 4. Apply CLI flag overrides
@@ -96,7 +96,7 @@ export async function loadConfig(options?: {
     if (typeof flags.digestDir === 'string') config.digestDir = flags.digestDir;
     if (typeof flags.transcriptDir === 'string') config.transcriptDir = flags.transcriptDir;
     if (typeof flags.model === 'string') config.defaultModel = flags.model;
-    if (typeof flags.provider === 'string') config.defaultProvider = flags.provider;
+    if (typeof flags.provider === 'string') config.defaultProvider = flags.provider as ProviderKey;
   }
 
   return config;

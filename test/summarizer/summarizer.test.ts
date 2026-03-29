@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Summarizer } from '../../src/summarizer/summarizer.js';
 import { PROVIDER_REGISTRY } from '../../src/summarizer/providers.js';
-import type { ResolvedContext } from '../../src/engine/types.js';
+import type { ProviderKey, ResolvedContext } from '../../src/engine/types.js';
 
 vi.mock('ai', () => ({
   generateText: vi.fn().mockResolvedValue({
@@ -67,7 +67,7 @@ describe('Summarizer', () => {
   });
 
   it('should throw for unknown provider', async () => {
-    expect(() => new Summarizer({ provider: 'nope' })).toThrow("Unknown provider 'nope'");
+    expect(() => new Summarizer({ provider: 'nope' as ProviderKey })).toThrow("Unknown provider 'nope'");
   });
 
   it('should use provider default model when no model is specified', () => {
@@ -81,12 +81,13 @@ describe('Summarizer', () => {
   });
 
   it.each(['openai', 'google', 'moonshotai'])('should use %s provider default model', (provider) => {
-    process.env[PROVIDER_REGISTRY[provider as keyof typeof PROVIDER_REGISTRY].envKey] = 'test-key';
+    const providerKey = provider as ProviderKey;
+    process.env[PROVIDER_REGISTRY[providerKey].envKey] = 'test-key';
     try {
-      const summarizer = new Summarizer({ provider });
-      expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[provider as keyof typeof PROVIDER_REGISTRY].defaultModel);
+      const summarizer = new Summarizer({ provider: providerKey });
+      expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[providerKey].defaultModel);
     } finally {
-      delete process.env[PROVIDER_REGISTRY[provider as keyof typeof PROVIDER_REGISTRY].envKey];
+      delete process.env[PROVIDER_REGISTRY[providerKey].envKey];
     }
   });
 

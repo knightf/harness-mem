@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { PROVIDER_REGISTRY } from '../../src/summarizer/providers.js';
 import type { ProviderDefinition } from '../../src/summarizer/providers.js';
+import type { ProviderKey } from '../../src/engine/types.js';
 
 describe('PROVIDER_REGISTRY', () => {
-  const expectedProviders = ['anthropic', 'openai', 'google', 'moonshotai'];
+  const expectedProviders: ProviderKey[] = ['anthropic', 'openai', 'google', 'moonshotai'];
 
   it('should contain all expected providers', () => {
     for (const key of expectedProviders) {

@@ -1,4 +1,5 @@
-export type ProviderKey = 'anthropic' | 'openai' | 'google' | 'moonshotai';
+export type { ProviderKey } from '../engine/types.js';
+import type { ProviderKey } from '../engine/types.js';
 
 export interface ProviderDefinition {
   name: string;

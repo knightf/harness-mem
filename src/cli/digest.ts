@@ -7,7 +7,7 @@ import { ReplayIterator } from '../engine/replay.js';
 import { Summarizer } from '../summarizer/summarizer.js';
 import { DigestStore } from '../storage/digest-store.js';
 import { PROVIDER_REGISTRY } from '../summarizer/providers.js';
-import type { ProviderKey } from '../summarizer/providers.js';
+import type { ProviderKey } from '../engine/types.js';
 
 // ─── DigestOptions ────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ export interface DigestOptions {
   sessionId: string;
   digestDir: string;
   model?: string;
-  provider: string;
+  provider: ProviderKey;
   force?: boolean;
   logger?: Logger;
 }
@@ -78,7 +78,11 @@ export async function runDigest(options: DigestOptions): Promise<void> {
   logger?.debug({ entryCount: resolved.entries.length, artifactCount: resolved.artifacts.length }, 'resolved context');
 
   // 10. Summarize via LLM
-  const resolvedModel = model || PROVIDER_REGISTRY[provider as ProviderKey]!.defaultModel;
+  const providerDef = PROVIDER_REGISTRY[provider];
+  if (!providerDef) {
+    throw new Error(`Unknown provider '${provider}'. Supported: ${Object.keys(PROVIDER_REGISTRY).join(', ')}`);
+  }
+  const resolvedModel = model || providerDef.defaultModel;
   logger?.info({ model: resolvedModel, provider }, 'calling LLM for summarization');
   const summarizer = new Summarizer({ model, provider });
   const summary = await summarizer.summarize(resolved);

@@ -1,15 +1,15 @@
 import { generateText } from 'ai';
 import { PROVIDER_REGISTRY } from './providers.js';
-import type { ProviderDefinition, ProviderKey } from './providers.js';
-import type { ResolvedContext } from '../engine/types.js';
+import type { ProviderDefinition } from './providers.js';
+import type { ProviderKey, ResolvedContext } from '../engine/types.js';
 
 export class Summarizer {
   private model: string;
-  private provider: string;
+  private provider: ProviderKey;
   private definition: ProviderDefinition;
 
-  constructor({ model, provider }: { model?: string; provider: string }) {
-    const definition = PROVIDER_REGISTRY[provider as ProviderKey];
+  constructor({ model, provider }: { model?: string; provider: ProviderKey }) {
+    const definition = PROVIDER_REGISTRY[provider];
     if (!definition) {
       throw new Error(
         `Unknown provider '${provider}'. Supported providers: ${Object.keys(PROVIDER_REGISTRY).join(', ')}`
