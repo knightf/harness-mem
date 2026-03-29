@@ -35,7 +35,8 @@ describe('loadConfig', () => {
   it('should return defaults when no config file exists', async () => {
     const config = await loadConfig({ configDir: tmpDir });
     expect(config.digestDir).toContain('digests');
-    expect(config.defaultModel).toBe('claude-haiku-4-5-20251001');
+    expect(config.defaultModel).toBeUndefined();
+    expect(config.defaultProvider).toBe('anthropic');
     expect(config.recap.since).toBe('24h');
     expect(config.recap.maxLength).toBe(20000);
     expect(config.recap.maxFallbackDigests).toBe(10);

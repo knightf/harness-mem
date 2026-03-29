@@ -13,7 +13,7 @@ export interface DigestOptions {
   transcriptPath: string;
   sessionId: string;
   digestDir: string;
-  model: string;
+  model?: string;
   provider: string;
   force?: boolean;
   logger?: Logger;

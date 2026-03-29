@@ -169,7 +169,7 @@ export interface DigestMetadata {
 export interface HarnessMemConfig {
   digestDir: string;
   transcriptDir: string;
-  defaultModel: string;
+  defaultModel?: string;
   defaultProvider: string;
   recap: {
     since: string;

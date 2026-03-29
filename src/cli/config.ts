@@ -27,7 +27,6 @@ async function loadConfigEnv(configDir: string): Promise<void> {
 const DEFAULTS: HarnessMemConfig = {
   digestDir: path.join(os.homedir(), '.harness-mem', 'digests'),
   transcriptDir: path.join(os.homedir(), '.claude', 'projects'),
-  defaultModel: 'claude-haiku-4-5-20251001',
   defaultProvider: 'anthropic',
   recap: { since: '24h', maxLength: 20000, maxFallbackDigests: 10 },
   clean: { olderThan: '30d' },
