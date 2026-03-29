@@ -81,12 +81,27 @@ describe('Summarizer', () => {
   });
 
   it.each(['openai', 'google', 'moonshotai'])('should use %s provider default model', (provider) => {
-    process.env[PROVIDER_REGISTRY[provider].envKey] = 'test-key';
+    process.env[PROVIDER_REGISTRY[provider as keyof typeof PROVIDER_REGISTRY].envKey] = 'test-key';
     try {
       const summarizer = new Summarizer({ provider });
-      expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[provider].defaultModel);
+      expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[provider as keyof typeof PROVIDER_REGISTRY].defaultModel);
     } finally {
-      delete process.env[PROVIDER_REGISTRY[provider].envKey];
+      delete process.env[PROVIDER_REGISTRY[provider as keyof typeof PROVIDER_REGISTRY].envKey];
     }
+  });
+
+  it('should throw descriptive error when provider fails to load', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    const summarizer = new Summarizer({ provider: 'anthropic' });
+    // Override the internal definition's load to simulate import failure
+    (summarizer as any).definition = {
+      ...(summarizer as any).definition,
+      load: async () => { throw new Error('Cannot find module'); },
+    };
+    const resolved: ResolvedContext = {
+      entries: [], artifacts: [],
+      totalTokens: 0, budget: 1000, droppedEntries: 0,
+    };
+    await expect(summarizer.summarize(resolved)).rejects.toThrow('failed to load');
   });
 });

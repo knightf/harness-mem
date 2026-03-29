@@ -7,6 +7,7 @@ import { ReplayIterator } from '../engine/replay.js';
 import { Summarizer } from '../summarizer/summarizer.js';
 import { DigestStore } from '../storage/digest-store.js';
 import { PROVIDER_REGISTRY } from '../summarizer/providers.js';
+import type { ProviderKey } from '../summarizer/providers.js';
 
 // ─── DigestOptions ────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export async function runDigest(options: DigestOptions): Promise<void> {
   logger?.debug({ entryCount: resolved.entries.length, artifactCount: resolved.artifacts.length }, 'resolved context');
 
   // 10. Summarize via LLM
-  const resolvedModel = model || PROVIDER_REGISTRY[provider]!.defaultModel;
+  const resolvedModel = model || PROVIDER_REGISTRY[provider as ProviderKey]!.defaultModel;
   logger?.info({ model: resolvedModel, provider }, 'calling LLM for summarization');
   const summarizer = new Summarizer({ model, provider });
   const summary = await summarizer.summarize(resolved);

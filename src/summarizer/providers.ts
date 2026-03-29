@@ -1,11 +1,13 @@
+export type ProviderKey = 'anthropic' | 'openai' | 'google' | 'moonshotai';
+
 export interface ProviderDefinition {
   name: string;
   defaultModel: string;
   envKey: string;
-  load: () => Promise<any>;
+  load: () => Promise<(modelId: string) => unknown>;
 }
 
-export const PROVIDER_REGISTRY: Record<string, ProviderDefinition> = {
+export const PROVIDER_REGISTRY: Record<ProviderKey, ProviderDefinition> = {
   anthropic: {
     name: 'Anthropic',
     defaultModel: 'claude-haiku-4-5-20251001',
