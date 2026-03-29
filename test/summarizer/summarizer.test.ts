@@ -82,13 +82,8 @@ describe('Summarizer', () => {
 
   it.each(['openai', 'google', 'moonshotai'])('should use %s provider default model', (provider) => {
     const providerKey = provider as ProviderKey;
-    process.env[PROVIDER_REGISTRY[providerKey].envKey] = 'test-key';
-    try {
-      const summarizer = new Summarizer({ provider: providerKey });
-      expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[providerKey].defaultModel);
-    } finally {
-      delete process.env[PROVIDER_REGISTRY[providerKey].envKey];
-    }
+    const summarizer = new Summarizer({ provider: providerKey });
+    expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[providerKey].defaultModel);
   });
 
   it('should throw descriptive error when provider fails to load', async () => {
