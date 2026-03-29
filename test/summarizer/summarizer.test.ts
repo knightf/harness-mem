@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Summarizer } from '../../src/summarizer/summarizer.js';
 import type { ResolvedContext } from '../../src/engine/types.js';
+import { PROVIDER_REGISTRY } from '../../src/summarizer/providers.js';
 
 vi.mock('ai', () => ({
   generateText: vi.fn().mockResolvedValue({
@@ -9,6 +10,21 @@ vi.mock('ai', () => ({
 }));
 
 describe('Summarizer', () => {
+  let originalApiKey: string | undefined;
+
+  beforeEach(() => {
+    originalApiKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+  });
+
+  afterEach(() => {
+    if (originalApiKey !== undefined) {
+      process.env.ANTHROPIC_API_KEY = originalApiKey;
+    } else {
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+  });
+
   it('should generate a summary from resolved context', async () => {
     const summarizer = new Summarizer({ model: 'claude-haiku-4-5-20251001', provider: 'anthropic' });
     const resolved: ResolvedContext = {
@@ -38,5 +54,34 @@ describe('Summarizer', () => {
     expect(generateText).toHaveBeenCalled();
     const call = (generateText as any).mock.calls[0][0];
     expect(call.prompt).toContain('src/foo.ts');
+  });
+
+  it('should throw if provider API key env var is not set', async () => {
+    const original = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const summarizer = new Summarizer({ provider: 'anthropic' });
+      const resolved: ResolvedContext = {
+        entries: [], artifacts: [],
+        totalTokens: 0, budget: 1000, droppedEntries: 0,
+      };
+      await expect(summarizer.summarize(resolved)).rejects.toThrow('ANTHROPIC_API_KEY');
+    } finally {
+      if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
+    }
+  });
+
+  it('should throw for unknown provider', async () => {
+    expect(() => new Summarizer({ provider: 'nope' })).toThrow("Unknown provider 'nope'");
+  });
+
+  it('should use provider default model when no model is specified', () => {
+    const summarizer = new Summarizer({ provider: 'anthropic' });
+    expect((summarizer as any).model).toBe('claude-haiku-4-5-20251001');
+  });
+
+  it('should use explicit model over provider default', () => {
+    const summarizer = new Summarizer({ model: 'claude-sonnet-4-20250514', provider: 'anthropic' });
+    expect((summarizer as any).model).toBe('claude-sonnet-4-20250514');
   });
 });
