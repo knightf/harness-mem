@@ -86,6 +86,9 @@ export async function loadConfig(options?: {
   if (process.env.HARNESS_MEM_MODEL) {
     config.defaultModel = process.env.HARNESS_MEM_MODEL;
   }
+  if (process.env.HARNESS_MEM_PROVIDER) {
+    config.defaultProvider = process.env.HARNESS_MEM_PROVIDER;
+  }
 
   // 4. Apply CLI flag overrides
   const flags = options?.flags;

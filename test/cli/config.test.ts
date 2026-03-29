@@ -7,6 +7,7 @@ import os from 'os';
 let tmpDir: string;
 const originalEnv = {
   HARNESS_MEM_MODEL: process.env.HARNESS_MEM_MODEL,
+  HARNESS_MEM_PROVIDER: process.env.HARNESS_MEM_PROVIDER,
   HARNESS_MEM_DIGEST_DIR: process.env.HARNESS_MEM_DIGEST_DIR,
   HARNESS_MEM_TRANSCRIPT_DIR: process.env.HARNESS_MEM_TRANSCRIPT_DIR,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
@@ -15,6 +16,7 @@ const originalEnv = {
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'harness-mem-config-'));
   delete process.env.HARNESS_MEM_MODEL;
+  delete process.env.HARNESS_MEM_PROVIDER;
   delete process.env.HARNESS_MEM_DIGEST_DIR;
   delete process.env.HARNESS_MEM_TRANSCRIPT_DIR;
   delete process.env.ANTHROPIC_API_KEY;
@@ -59,6 +61,12 @@ describe('loadConfig', () => {
     process.env.HARNESS_MEM_MODEL = 'gpt-4o';
     const config = await loadConfig({ configDir: tmpDir });
     expect(config.defaultModel).toBe('gpt-4o');
+  });
+
+  it('should apply provider env var override', async () => {
+    process.env.HARNESS_MEM_PROVIDER = 'openai';
+    const config = await loadConfig({ configDir: tmpDir });
+    expect(config.defaultProvider).toBe('openai');
   });
 
   it('should apply CLI flag overrides', async () => {
