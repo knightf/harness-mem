@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Summarizer } from '../../src/summarizer/summarizer.js';
+import { PROVIDER_REGISTRY } from '../../src/summarizer/providers.js';
 import type { ResolvedContext } from '../../src/engine/types.js';
 
 vi.mock('ai', () => ({
@@ -77,5 +78,15 @@ describe('Summarizer', () => {
   it('should use explicit model over provider default', () => {
     const summarizer = new Summarizer({ model: 'claude-sonnet-4-20250514', provider: 'anthropic' });
     expect((summarizer as any).model).toBe('claude-sonnet-4-20250514');
+  });
+
+  it.each(['openai', 'google', 'moonshotai'])('should use %s provider default model', (provider) => {
+    process.env[PROVIDER_REGISTRY[provider].envKey] = 'test-key';
+    try {
+      const summarizer = new Summarizer({ provider });
+      expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[provider].defaultModel);
+    } finally {
+      delete process.env[PROVIDER_REGISTRY[provider].envKey];
+    }
   });
 });

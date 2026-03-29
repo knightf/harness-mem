@@ -77,7 +77,7 @@ export async function runDigest(options: DigestOptions): Promise<void> {
   logger?.debug({ entryCount: resolved.entries.length, artifactCount: resolved.artifacts.length }, 'resolved context');
 
   // 10. Summarize via LLM
-  const resolvedModel = model || PROVIDER_REGISTRY[provider]?.defaultModel || 'unknown';
+  const resolvedModel = model || PROVIDER_REGISTRY[provider]!.defaultModel;
   logger?.info({ model: resolvedModel, provider }, 'calling LLM for summarization');
   const summarizer = new Summarizer({ model, provider });
   const summary = await summarizer.summarize(resolved);
