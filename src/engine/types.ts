@@ -1,3 +1,7 @@
+// ─── Provider Key ─────────────────────────────────────────────────────────────
+
+export type ProviderKey = 'anthropic' | 'openai' | 'google' | 'moonshotai';
+
 // ─── Decay Policy ────────────────────────────────────────────────────────────
 
 export interface DecayPolicy {
@@ -169,8 +173,8 @@ export interface DigestMetadata {
 export interface HarnessMemConfig {
   digestDir: string;
   transcriptDir: string;
-  defaultModel: string;
-  defaultProvider: string;
+  defaultModel?: string;
+  defaultProvider: ProviderKey;
   recap: {
     since: string;
     maxLength: number;

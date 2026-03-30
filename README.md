@@ -8,29 +8,54 @@ A CLI tool that analyzes AI agent session logs and produces human-readable summa
 
 Coming back to agent work after hours or days is disorienting. You lose the "why" behind decisions, the state of in-progress work, and the context that made the session productive. Git log tells you *what* changed but not *why* or *what was left open*.
 
-## How It Works
+## Quickstart
 
-harness-mem uses a scope engine inspired by JavaScript's execution model to analyze session transcripts:
-
-- **Boundary detection** identifies where logical work units start and end (tool switches, topic shifts, time gaps)
-- **Decay scoring** determines what's still relevant vs. what was intermediate exploration noise
-- **Side effect tracking** captures what actually changed in the world (files created/modified, commands run)
-
-The surviving context is sent to an LLM which produces a handoff-note-style summary — conversational but precise, with file paths and decision rationale.
-
-## Installation
+1. Install the CLI:
 
 ```bash
 npm install -g harness-mem
 ```
 
-Or run directly:
+2. Create `~/.harness-mem/.env` with your provider and API key:
 
-```bash
-npx harness-mem
+```env
+HARNESS_MEM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_api_key_here
 ```
 
-Requires an Anthropic API key set as `ANTHROPIC_API_KEY`, either in your shell environment or in `~/.harness-mem/.env`.
+Supported providers:
+- `anthropic` — `ANTHROPIC_API_KEY`
+- `openai` — `OPENAI_API_KEY`
+- `google` — `GOOGLE_GENERATIVE_AI_API_KEY`
+- `moonshotai` — `MOONSHOT_API_KEY`
+
+3. Add the Claude Code hooks:
+
+```json
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [{
+          "type": "command",
+          "command": "harness-mem digest"
+        }]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [{
+          "type": "command",
+          "command": "harness-mem recap --since 24h"
+        }]
+      }
+    ]
+  }
+}
+```
+
+4. Start using it! Just use claude code as normal, you will receive recent session summaries on new session startup.
 
 ## Commands
 
@@ -48,8 +73,14 @@ echo '{"session_id":"abc","transcript_path":"path/to/session.jsonl"}' | harness-
 
 **Flags:**
 - `--digest-dir <path>` — Where to store digests (default: `~/.harness-mem/digests/`)
-- `--model <model>` — LLM model for summarization (default: `claude-haiku-4-5-20251001`)
+- `--model <model>` — LLM model for summarization (default: uses the selected provider's default model)
 - `--force` — Overwrite existing digest for this session
+
+If you do not set a model, `digest` now falls back to the configured provider default:
+- `anthropic` → `claude-haiku-4-5-20251001`
+- `openai` → `gpt-4o-mini`
+- `google` → `gemini-2.5-flash`
+- `moonshotai` → `kimi-k2.5`
 
 ### `harness-mem recap`
 
@@ -82,35 +113,20 @@ harness-mem clean --before 2026-03-01 --dry-run
 - `--before <date>` — Delete digests before this date
 - `--dry-run` — Preview what would be deleted
 
-## Claude Code Hook Integration
+## How It Works
 
-Add to your Claude Code `settings.json` to automatically digest sessions and get briefed on startup:
+### Session Analysis Engine
 
-```json
-{
-  "hooks": {
-    "SessionEnd": [
-      {
-        "hooks": [{
-          "type": "command",
-          "command": "harness-mem digest"
-        }]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [{
-          "type": "command",
-          "command": "harness-mem recap --since 24h"
-        }]
-      }
-    ]
-  }
-}
-```
+harness-mem uses a scope engine inspired by JavaScript's execution model to analyze session transcripts:
 
-**How it works:**
+- **Boundary detection** identifies where logical work units start and end (tool switches, topic shifts, time gaps)
+- **Decay scoring** determines what's still relevant vs. what was intermediate exploration noise
+- **Side effect tracking** captures what actually changed in the world (files created/modified, commands run)
+
+The surviving context is sent to an LLM which produces a handoff-note-style summary — conversational but precise, with file paths and decision rationale.
+
+### Claude Code Hook Integration
+
 - **SessionEnd** fires when a session terminates. `harness-mem digest` reads the session info from stdin (provided by Claude Code) and produces a summary.
 - **SessionStart** fires when you open a new session. `harness-mem recap` prints recent summaries to stdout, which Claude Code injects into the agent's context — so the agent knows what you've been working on.
 
@@ -124,8 +140,8 @@ Create `~/.harness-mem/config.json` for persistent settings:
 {
   "digestDir": "~/.harness-mem/digests",
   "transcriptDir": "~/.claude/projects",
-  "defaultModel": "claude-haiku-4-5-20251001",
   "defaultProvider": "anthropic",
+  "defaultModel": "claude-haiku-4-5-20251001",
   "recap": {
     "since": "24h",
     "maxLength": 20000,
@@ -142,14 +158,21 @@ Create `~/.harness-mem/config.json` for persistent settings:
 **Environment variables:**
 - `HARNESS_MEM_DIGEST_DIR`
 - `HARNESS_MEM_TRANSCRIPT_DIR`
+- `HARNESS_MEM_PROVIDER`
 - `HARNESS_MEM_MODEL`
 - `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `GOOGLE_GENERATIVE_AI_API_KEY`
+- `MOONSHOT_API_KEY`
+
+`HARNESS_MEM_PROVIDER` overrides the configured summarization backend. Valid values are `anthropic`, `openai`, `google`, and `moonshotai`.
 
 You can also create `~/.harness-mem/.env`:
 
 ```env
-ANTHROPIC_API_KEY=your_api_key_here
-HARNESS_MEM_MODEL=claude-haiku-4-5-20251001
+HARNESS_MEM_PROVIDER=openai
+OPENAI_API_KEY=your_api_key_here
+HARNESS_MEM_MODEL=gpt-4o-mini
 ```
 
 Values from `~/.harness-mem/.env` are loaded automatically at startup and inherited by child processes. Existing OS environment variables still take precedence over `.env` values.

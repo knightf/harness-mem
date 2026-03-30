@@ -1,4 +1,4 @@
-import type { HarnessMemConfig } from '../engine/types.js';
+import type { HarnessMemConfig, ProviderKey } from '../engine/types.js';
 import { parse as parseDotenv } from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
@@ -27,7 +27,6 @@ async function loadConfigEnv(configDir: string): Promise<void> {
 const DEFAULTS: HarnessMemConfig = {
   digestDir: path.join(os.homedir(), '.harness-mem', 'digests'),
   transcriptDir: path.join(os.homedir(), '.claude', 'projects'),
-  defaultModel: 'claude-haiku-4-5-20251001',
   defaultProvider: 'anthropic',
   recap: { since: '24h', maxLength: 20000, maxFallbackDigests: 10 },
   clean: { olderThan: '30d' },
@@ -87,6 +86,9 @@ export async function loadConfig(options?: {
   if (process.env.HARNESS_MEM_MODEL) {
     config.defaultModel = process.env.HARNESS_MEM_MODEL;
   }
+  if (process.env.HARNESS_MEM_PROVIDER) {
+    config.defaultProvider = process.env.HARNESS_MEM_PROVIDER as ProviderKey;
+  }
 
   // 4. Apply CLI flag overrides
   const flags = options?.flags;
@@ -94,7 +96,7 @@ export async function loadConfig(options?: {
     if (typeof flags.digestDir === 'string') config.digestDir = flags.digestDir;
     if (typeof flags.transcriptDir === 'string') config.transcriptDir = flags.transcriptDir;
     if (typeof flags.model === 'string') config.defaultModel = flags.model;
-    if (typeof flags.provider === 'string') config.defaultProvider = flags.provider;
+    if (typeof flags.provider === 'string') config.defaultProvider = flags.provider as ProviderKey;
   }
 
   return config;

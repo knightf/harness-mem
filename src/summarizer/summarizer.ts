@@ -1,37 +1,39 @@
 import { generateText } from 'ai';
-import type { ResolvedContext } from '../engine/types.js';
-
-const PROVIDER_REGISTRY: Record<string, () => Promise<any>> = {
-  anthropic: async () => (await import('@ai-sdk/anthropic')).anthropic,
-  // TODO: Add when needed — install @ai-sdk/openai or @ai-sdk/google first
-  // openai: async () => (await import('@ai-sdk/openai')).openai,
-  // google: async () => (await import('@ai-sdk/google')).google,
-};
+import { PROVIDER_REGISTRY } from './providers.js';
+import type { ProviderDefinition } from './providers.js';
+import type { ProviderKey, ResolvedContext } from '../engine/types.js';
 
 export class Summarizer {
   private model: string;
-  private provider: string;
+  private provider: ProviderKey;
+  private definition: ProviderDefinition;
 
-  constructor({ model, provider }: { model: string; provider: string }) {
-    this.model = model;
+  constructor({ model, provider }: { model?: string; provider: ProviderKey }) {
+    const definition = PROVIDER_REGISTRY[provider];
+    if (!definition) {
+      throw new Error(
+        `Unknown provider '${provider}'. Supported providers: ${Object.keys(PROVIDER_REGISTRY).join(', ')}`
+      );
+    }
+    this.definition = definition;
     this.provider = provider;
+    this.model = model || definition.defaultModel;
   }
 
   async summarize(resolved: ResolvedContext): Promise<string> {
-    let factory: (modelId: string) => unknown;
-
-    const registryEntry = PROVIDER_REGISTRY[this.provider];
-    if (!registryEntry) {
+    if (!process.env[this.definition.envKey]) {
       throw new Error(
-        `Unknown provider '${this.provider}'. Supported providers: ${Object.keys(PROVIDER_REGISTRY).join(', ')}`
+        `Provider '${this.provider}' requires ${this.definition.envKey} to be set. ` +
+        `Add it to your environment or ~/.harness-mem/.env`
       );
     }
 
+    let factory: (modelId: string) => unknown;
     try {
-      factory = await registryEntry();
+      factory = await this.definition.load();
     } catch {
       throw new Error(
-        `Provider '${this.provider}' requires @ai-sdk/${this.provider} — install it with: npm install @ai-sdk/${this.provider}`
+        `Provider '${this.provider}' failed to load. Ensure @ai-sdk/${this.provider} is installed.`
       );
     }
 

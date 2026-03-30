@@ -6,6 +6,8 @@ import { ToolClusterDetector } from '../engine/boundary.js';
 import { ReplayIterator } from '../engine/replay.js';
 import { Summarizer } from '../summarizer/summarizer.js';
 import { DigestStore } from '../storage/digest-store.js';
+import { PROVIDER_REGISTRY } from '../summarizer/providers.js';
+import type { ProviderKey } from '../engine/types.js';
 
 // ─── DigestOptions ────────────────────────────────────────────────────────────
 
@@ -13,8 +15,8 @@ export interface DigestOptions {
   transcriptPath: string;
   sessionId: string;
   digestDir: string;
-  model: string;
-  provider: string;
+  model?: string;
+  provider: ProviderKey;
   force?: boolean;
   logger?: Logger;
 }
@@ -76,7 +78,12 @@ export async function runDigest(options: DigestOptions): Promise<void> {
   logger?.debug({ entryCount: resolved.entries.length, artifactCount: resolved.artifacts.length }, 'resolved context');
 
   // 10. Summarize via LLM
-  logger?.info({ model, provider }, 'calling LLM for summarization');
+  const providerDef = PROVIDER_REGISTRY[provider];
+  if (!providerDef) {
+    throw new Error(`Unknown provider '${provider}'. Supported: ${Object.keys(PROVIDER_REGISTRY).join(', ')}`);
+  }
+  const resolvedModel = model || providerDef.defaultModel;
+  logger?.info({ model: resolvedModel, provider }, 'calling LLM for summarization');
   const summarizer = new Summarizer({ model, provider });
   const summary = await summarizer.summarize(resolved);
   logger?.info({ summaryLength: summary.length }, 'LLM summarization complete');
@@ -86,7 +93,7 @@ export async function runDigest(options: DigestOptions): Promise<void> {
     sessionId,
     timestamp: traceMeta.endTime || new Date().toISOString(),
     durationMinutes,
-    model,
+    model: resolvedModel,
     workingDirectory: traceMeta.cwd || '',
   };
 

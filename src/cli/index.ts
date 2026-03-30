@@ -123,9 +123,10 @@ export function buildProgram(): Command {
           sessionId,
           '--digest-dir',
           config.digestDir,
-          '--model',
-          config.defaultModel,
         ];
+        if (config.defaultModel) {
+          childArgs.push('--model', config.defaultModel);
+        }
 
         if (force) {
           childArgs.push('--force');

@@ -15,12 +15,20 @@ vi.mock('ai', () => ({
 }));
 
 let tmpDigestDir: string;
+let originalApiKey: string | undefined;
 
 beforeEach(async () => {
+  originalApiKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'test-key';
   tmpDigestDir = await fs.mkdtemp(path.join(os.tmpdir(), 'harness-mem-integration-'));
 });
 
 afterEach(async () => {
+  if (originalApiKey !== undefined) {
+    process.env.ANTHROPIC_API_KEY = originalApiKey;
+  } else {
+    delete process.env.ANTHROPIC_API_KEY;
+  }
   await fs.rm(tmpDigestDir, { recursive: true, force: true });
 });
 
