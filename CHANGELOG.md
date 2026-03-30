@@ -1,5 +1,11 @@
 # harness-mem
 
+## 0.1.3
+
+### Patch Changes
+
+- 52c4866: Support OpenAI/Google/MoonshotAI
+
 ## 0.1.2
 
 ### Patch Changes
