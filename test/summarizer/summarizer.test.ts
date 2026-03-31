@@ -80,7 +80,12 @@ describe('Summarizer', () => {
     expect((summarizer as any).model).toBe('claude-sonnet-4-20250514');
   });
 
-  it.each(['openai', 'google', 'moonshotai'])('should use %s provider default model', (provider) => {
+  it('should not require API key for ollama provider', () => {
+    const summarizer = new Summarizer({ provider: 'ollama' });
+    expect((summarizer as any).model).toBe('llama3.2');
+  });
+
+  it.each(['openai', 'google', 'moonshotai', 'ollama'])('should use %s provider default model', (provider) => {
     const providerKey = provider as ProviderKey;
     const summarizer = new Summarizer({ provider: providerKey });
     expect((summarizer as any).model).toBe(PROVIDER_REGISTRY[providerKey].defaultModel);

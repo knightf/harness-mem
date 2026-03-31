@@ -28,6 +28,7 @@ Supported providers:
 - `openai` — `OPENAI_API_KEY`
 - `google` — `GOOGLE_GENERATIVE_AI_API_KEY`
 - `moonshotai` — `MOONSHOT_API_KEY`
+- `ollama` — no API key needed (local); set `OLLAMA_BASE_URL` to override default `http://localhost:11434/api`
 
 3. Add the Claude Code hooks:
 
@@ -81,6 +82,7 @@ If you do not set a model, `digest` now falls back to the configured provider de
 - `openai` → `gpt-4o-mini`
 - `google` → `gemini-2.5-flash`
 - `moonshotai` → `kimi-k2.5`
+- `ollama` → `llama3.2`
 
 ### `harness-mem recap`
 

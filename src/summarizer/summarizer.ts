@@ -21,7 +21,7 @@ export class Summarizer {
   }
 
   async summarize(resolved: ResolvedContext): Promise<string> {
-    if (!process.env[this.definition.envKey]) {
+    if (this.definition.envKey && !process.env[this.definition.envKey]) {
       throw new Error(
         `Provider '${this.provider}' requires ${this.definition.envKey} to be set. ` +
         `Add it to your environment or ~/.harness-mem/.env`

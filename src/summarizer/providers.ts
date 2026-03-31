@@ -4,7 +4,7 @@ import type { ProviderKey } from '../engine/types.js';
 export interface ProviderDefinition {
   name: string;
   defaultModel: string;
-  envKey: string;
+  envKey?: string;
   load: () => Promise<(modelId: string) => unknown>;
 }
 
@@ -32,5 +32,15 @@ export const PROVIDER_REGISTRY: Record<ProviderKey, ProviderDefinition> = {
     defaultModel: 'kimi-k2.5',
     envKey: 'MOONSHOT_API_KEY',
     load: async () => (await import('@ai-sdk/moonshotai')).moonshotai,
+  },
+  ollama: {
+    name: 'Ollama',
+    defaultModel: 'llama3.2',
+    load: async () => {
+      const { createOllama } = await import('ollama-ai-provider');
+      return createOllama({
+        baseURL: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/api',
+      });
+    },
   },
 };
