@@ -1,6 +1,6 @@
 // ─── Provider Key ─────────────────────────────────────────────────────────────
 
-export type ProviderKey = 'anthropic' | 'openai' | 'google' | 'moonshotai';
+export type ProviderKey = 'anthropic' | 'openai' | 'google' | 'moonshotai' | 'ollama';
 
 // ─── Decay Policy ────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ A CLI tool that analyzes AI agent session logs and produces human-readable summa
 
 ## The Problem
 
-Coming back to agent work after hours or days is disorienting. You lose the "why" behind decisions, the state of in-progress work, and the context that made the session productive. Git log tells you *what* changed but not *why* or *what was left open*.
+Coming back to agent work after hours or days is disorienting. You lose the "why" behind decisions, the state of in-progress work, and the context that made the session productive. Git log tells you _what_ changed but not _why_ or _what was left open_.
 
 ## Quickstart
 
@@ -24,10 +24,12 @@ ANTHROPIC_API_KEY=your_api_key_here
 ```
 
 Supported providers:
+
 - `anthropic` — `ANTHROPIC_API_KEY`
 - `openai` — `OPENAI_API_KEY`
 - `google` — `GOOGLE_GENERATIVE_AI_API_KEY`
 - `moonshotai` — `MOONSHOT_API_KEY`
+- `ollama` — no API key needed (local); set `OLLAMA_BASE_URL` to override default `http://localhost:11434/api`
 
 3. Add the Claude Code hooks:
 
@@ -36,19 +38,23 @@ Supported providers:
   "hooks": {
     "SessionEnd": [
       {
-        "hooks": [{
-          "type": "command",
-          "command": "harness-mem digest"
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "harness-mem digest"
+          }
+        ]
       }
     ],
     "SessionStart": [
       {
         "matcher": "startup",
-        "hooks": [{
-          "type": "command",
-          "command": "harness-mem recap --since 24h"
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "harness-mem recap --since 24h"
+          }
+        ]
       }
     ]
   }
@@ -72,15 +78,18 @@ echo '{"session_id":"abc","transcript_path":"path/to/session.jsonl"}' | harness-
 ```
 
 **Flags:**
+
 - `--digest-dir <path>` — Where to store digests (default: `~/.harness-mem/digests/`)
 - `--model <model>` — LLM model for summarization (default: uses the selected provider's default model)
 - `--force` — Overwrite existing digest for this session
 
 If you do not set a model, `digest` now falls back to the configured provider default:
+
 - `anthropic` → `claude-haiku-4-5-20251001`
 - `openai` → `gpt-4o-mini`
 - `google` → `gemini-2.5-flash`
 - `moonshotai` → `kimi-k2.5`
+- `ollama` → `qwen3.5:4b`
 
 ### `harness-mem recap`
 
@@ -93,6 +102,7 @@ harness-mem recap --max-length 10000
 ```
 
 **Flags:**
+
 - `--since <duration>` — Time window: `Nm`, `Nh`, `Nd` (default: `24h`)
 - `--max-length <chars>` — Character limit for output (default: `20000`)
 - `--no-limit` — No character limit
@@ -109,6 +119,7 @@ harness-mem clean --before 2026-03-01 --dry-run
 ```
 
 **Flags:**
+
 - `--older-than <duration>` — Age threshold (default: `30d`)
 - `--before <date>` — Delete digests before this date
 - `--dry-run` — Preview what would be deleted
@@ -156,6 +167,7 @@ Create `~/.harness-mem/config.json` for persistent settings:
 **Override priority:** CLI flags > environment variables > config file > defaults
 
 **Environment variables:**
+
 - `HARNESS_MEM_DIGEST_DIR`
 - `HARNESS_MEM_TRANSCRIPT_DIR`
 - `HARNESS_MEM_PROVIDER`
