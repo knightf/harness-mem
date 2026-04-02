@@ -1,5 +1,11 @@
 # harness-mem
 
+## 0.1.4
+
+### Patch Changes
+
+- 8bae494: add support for local ollama
+
 ## 0.1.3
 
 ### Patch Changes
