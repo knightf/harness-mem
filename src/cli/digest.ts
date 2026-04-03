@@ -85,8 +85,20 @@ export async function runDigest(options: DigestOptions): Promise<void> {
   const resolvedModel = model || providerDef.defaultModel;
   logger?.info({ model: resolvedModel, provider }, 'calling LLM for summarization');
   const summarizer = new Summarizer({ model, provider });
-  const summary = await summarizer.summarize(resolved);
-  logger?.info({ summaryLength: summary.length }, 'LLM summarization complete');
+  const constraints = await summarizer.summarize(resolved);
+  const constraintCounts = {
+    eliminations: constraints.eliminations.length,
+    decisions: constraints.decisions.length,
+    invariants: constraints.invariants.length,
+    preferences: constraints.preferences.length,
+    openThreads: constraints.openThreads.length,
+    keywords: constraints.keywords.length,
+  };
+  if (constraints.keywords.length === 0 && constraints.eliminations.length === 0 && constraints.decisions.length === 0) {
+    logger?.warn('LLM may have returned malformed output — no constraints extracted');
+  }
+  const body = JSON.stringify(constraints);
+  logger?.info({ bodyLength: body.length, ...constraintCounts }, 'LLM summarization complete');
 
   // 11. Build digest metadata
   const digestMeta = {
@@ -97,7 +109,15 @@ export async function runDigest(options: DigestOptions): Promise<void> {
     workingDirectory: traceMeta.cwd || '',
   };
 
-  // 12. Write digest to store
-  await store.write(digestMeta, summary);
-  logger?.info({ sessionId, digestDir }, 'digest written');
+  // 12. Write digest to store (JSON body, rendered to markdown on read)
+  await store.write(digestMeta, body);
+
+  // 13. Update constraint index — rebuild on force to avoid duplicates, append otherwise
+  if (force) {
+    const { indexed, skipped } = await store.rebuildIndex();
+    logger?.debug({ indexed, skipped }, 'rebuilt constraint index after force digest');
+  } else {
+    await store.appendIndex(sessionId, digestMeta.timestamp, constraints);
+  }
+  logger?.info({ sessionId, digestDir, ...constraintCounts }, 'digest written');
 }

@@ -1,13 +1,31 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { Summarizer } from "../../src/summarizer/summarizer.js";
+import { Summarizer, parseConstraintsResponse } from "../../src/summarizer/summarizer.js";
 import { PROVIDER_REGISTRY } from "../../src/summarizer/providers.js";
 import type { ProviderKey, ResolvedContext } from "../../src/engine/types.js";
 
 vi.mock("ai", () => ({
   generateText: vi.fn().mockResolvedValue({
-    text: `## What you worked on\n\nYou were editing foo.ts to add a new feature.\n\n## What changed\n\n- Modified \`src/foo.ts:42\` — added validation logic\n\n## Decisions made\n\n- Chose runtime validation over compile-time checks\n\n## Still open\n\n- Tests not yet written`,
+    text: JSON.stringify({
+      summary: "Edited foo.ts to add validation logic.",
+      keywords: ["foo", "validation"],
+      eliminations: [{ dont: "use compile-time checks", because: "too rigid for this use case" }],
+      decisions: [{ chose: "runtime validation", over: ["compile-time checks"], because: "flexibility" }],
+      invariants: [],
+      preferences: [],
+      openThreads: [{ type: "todo", what: "write tests", context: "no test coverage yet" }],
+    }),
   }),
 }));
+
+const mockConstraints = {
+  summary: "Edited foo.ts to add validation logic.",
+  keywords: ["foo", "validation"],
+  eliminations: [{ dont: "use compile-time checks", because: "too rigid for this use case" }],
+  decisions: [{ chose: "runtime validation", over: ["compile-time checks"], because: "flexibility" }],
+  invariants: [],
+  preferences: [],
+  openThreads: [{ type: "todo", what: "write tests", context: "no test coverage yet" }],
+};
 
 describe("Summarizer", () => {
   let originalApiKey: string | undefined;
@@ -57,9 +75,10 @@ describe("Summarizer", () => {
       budget: 1000,
       droppedEntries: 0,
     };
-    const summary = await summarizer.summarize(resolved);
-    expect(summary).toContain("## What you worked on");
-    expect(summary).toContain("## What changed");
+    const result = await summarizer.summarize(resolved);
+    expect(result.summary).toBe("Edited foo.ts to add validation logic.");
+    expect(result.decisions).toHaveLength(1);
+    expect(result.decisions[0].chose).toBe("runtime validation");
   });
 
   it("should include side effects in the prompt", async () => {
@@ -159,5 +178,41 @@ describe("Summarizer", () => {
     await expect(summarizer.summarize(resolved)).rejects.toThrow(
       "failed to load"
     );
+  });
+});
+
+describe("parseConstraintsResponse", () => {
+  it("should parse valid JSON", () => {
+    const input = JSON.stringify(mockConstraints);
+    const result = parseConstraintsResponse(input);
+    expect(result.summary).toBe(mockConstraints.summary);
+    expect(result.decisions).toHaveLength(1);
+    expect(result.eliminations).toHaveLength(1);
+  });
+
+  it("should strip markdown code fences", () => {
+    const input = "```json\n" + JSON.stringify(mockConstraints) + "\n```";
+    const result = parseConstraintsResponse(input);
+    expect(result.summary).toBe(mockConstraints.summary);
+  });
+
+  it("should fallback gracefully on malformed JSON", () => {
+    const result = parseConstraintsResponse("this is not json at all");
+    expect(result.summary).toBe("this is not json at all");
+    expect(result.keywords).toEqual([]);
+    expect(result.eliminations).toEqual([]);
+    expect(result.decisions).toEqual([]);
+    expect(result.invariants).toEqual([]);
+    expect(result.preferences).toEqual([]);
+    expect(result.openThreads).toEqual([]);
+  });
+
+  it("should handle partial JSON with missing arrays", () => {
+    const input = JSON.stringify({ summary: "did stuff" });
+    const result = parseConstraintsResponse(input);
+    expect(result.summary).toBe("did stuff");
+    expect(result.keywords).toEqual([]);
+    expect(result.eliminations).toEqual([]);
+    expect(result.decisions).toEqual([]);
   });
 });
