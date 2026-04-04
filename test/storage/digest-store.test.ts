@@ -63,9 +63,10 @@ describe('DigestStore', () => {
   });
 
   it('should return digests sorted newest-first', async () => {
+    const now = Date.now();
     await store.write({
       sessionId: 'older',
-      timestamp: '2026-03-27T10:00:00Z',
+      timestamp: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
       durationMinutes: 10,
       model: 'haiku',
       workingDirectory: '/project',
@@ -73,7 +74,7 @@ describe('DigestStore', () => {
 
     await store.write({
       sessionId: 'newer',
-      timestamp: '2026-03-28T10:00:00Z',
+      timestamp: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
       durationMinutes: 10,
       model: 'haiku',
       workingDirectory: '/project',

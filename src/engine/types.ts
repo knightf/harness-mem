@@ -184,3 +184,15 @@ export interface HarnessMemConfig {
     olderThan: string;
   };
 }
+
+// ─── Session Constraints (structured digest output) ──────────────────────────
+
+export interface SessionConstraints {
+  summary: string;
+  keywords: string[];
+  eliminations: Array<{ dont: string; because: string }>;
+  decisions: Array<{ chose: string; over: string[]; because: string }>;
+  invariants: Array<{ always: string; scope: string }>;
+  preferences: Array<{ prefer: string; over: string; context: string }>;
+  openThreads: Array<{ type: 'todo' | 'question'; what: string; context: string }>;
+}

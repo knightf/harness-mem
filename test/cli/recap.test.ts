@@ -33,12 +33,13 @@ describe('runRecap', () => {
   });
 
   it('should concatenate multiple digests newest-first', async () => {
+    const now = Date.now();
     await store.write({
-      sessionId: 'older', timestamp: '2026-03-27T10:00:00Z',
+      sessionId: 'older', timestamp: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
       durationMinutes: 10, model: 'haiku', workingDirectory: '/project',
     }, 'Older session content.');
     await store.write({
-      sessionId: 'newer', timestamp: '2026-03-28T10:00:00Z',
+      sessionId: 'newer', timestamp: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
       durationMinutes: 10, model: 'haiku', workingDirectory: '/project',
     }, 'Newer session content.');
     const output = await runRecap({ digestDir: tmpDigestDir, since: '7d', maxLength: 20000 });

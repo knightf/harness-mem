@@ -1,4 +1,4 @@
-import type { DigestMetadata } from '../engine/types.js';
+import type { DigestMetadata, SessionConstraints } from '../engine/types.js';
 import { formatDigest, parseDigest } from '../summarizer/formatter.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -150,6 +150,52 @@ export class DigestStore {
     return parseDigest(raw);
   }
 
+  // ─── Constraint Index ───────────────────────────────────────────────────────
+
+  private get indexPath(): string {
+    return path.join(this.digestDir, 'constraints.jsonl');
+  }
+
+  /**
+   * Appends flattened constraints from a session to the JSONL index.
+   */
+  async appendIndex(sessionId: string, timestamp: string, constraints: SessionConstraints): Promise<void> {
+    await fs.mkdir(this.digestDir, { recursive: true });
+    const lines = flattenConstraints(sessionId, timestamp, constraints);
+    if (lines.length === 0) return;
+    const content = lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+    await fs.appendFile(this.indexPath, content, 'utf-8');
+  }
+
+  /**
+   * Rebuilds the JSONL index from all remaining digest files.
+   */
+  async rebuildIndex(): Promise<{ indexed: number; skipped: number }> {
+    const entries = await this.query();
+    const lines: IndexEntry[] = [];
+    let skipped = 0;
+
+    for (const entry of entries) {
+      try {
+        const constraints: SessionConstraints = JSON.parse(entry.body);
+        lines.push(...flattenConstraints(entry.metadata.sessionId, entry.metadata.timestamp, constraints));
+      } catch {
+        // Legacy markdown digest — cannot index
+        skipped++;
+      }
+    }
+
+    if (lines.length === 0) {
+      // Remove stale index file rather than writing an empty one
+      try { await fs.unlink(this.indexPath); } catch { /* already gone */ }
+      return { indexed: 0, skipped };
+    }
+
+    const content = lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+    await fs.writeFile(this.indexPath, content, 'utf-8');
+    return { indexed: lines.length, skipped };
+  }
+
   // ─── Private helpers ─────────────────────────────────────────────────────────
 
   private shortHash(sessionId: string): string {
@@ -161,4 +207,46 @@ export class DigestStore {
     const shortHash = this.shortHash(metadata.sessionId);
     return `${datePart}-${shortHash}.md`;
   }
+}
+
+// ─── Index helpers ──────────────────────────────────────────────────────────
+
+export type IndexEntryType = 'elimination' | 'decision' | 'invariant' | 'preference' | 'todo' | 'question';
+
+export interface IndexEntry {
+  type: IndexEntryType;
+  content: string;
+  keywords: string[];
+  sessionId: string;
+  timestamp: string;
+}
+
+function flattenConstraints(sessionId: string, timestamp: string, c: SessionConstraints): IndexEntry[] {
+  const kw = c.keywords ?? [];
+  const entries: IndexEntry[] = [];
+
+  for (const e of c.eliminations ?? []) {
+    if (!e.dont || !e.because) continue;
+    entries.push({ type: 'elimination', content: `Don't ${e.dont} — because ${e.because}`, keywords: kw, sessionId, timestamp });
+  }
+  for (const d of c.decisions ?? []) {
+    if (!d.chose || !d.because) continue;
+    const over = Array.isArray(d.over) ? d.over.join(', ') : '';
+    entries.push({ type: 'decision', content: `Chose ${d.chose} over ${over} — because ${d.because}`, keywords: kw, sessionId, timestamp });
+  }
+  for (const i of c.invariants ?? []) {
+    if (!i.always) continue;
+    entries.push({ type: 'invariant', content: `Always ${i.always} — scope: ${i.scope ?? 'general'}`, keywords: kw, sessionId, timestamp });
+  }
+  for (const p of c.preferences ?? []) {
+    if (!p.prefer) continue;
+    entries.push({ type: 'preference', content: `Prefer ${p.prefer} over ${p.over ?? 'alternatives'} — context: ${p.context ?? 'general'}`, keywords: kw, sessionId, timestamp });
+  }
+  for (const t of c.openThreads ?? []) {
+    if (!t.what) continue;
+    const type = t.type === 'question' ? 'question' : 'todo';
+    entries.push({ type, content: `${t.what} — context: ${t.context ?? ''}`, keywords: kw, sessionId, timestamp });
+  }
+
+  return entries;
 }

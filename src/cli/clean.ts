@@ -34,5 +34,14 @@ export async function runClean(options: CleanOptions): Promise<CleanResult> {
     return { deleted: 0, wouldDelete: count };
   }
 
+  // Rebuild JSONL index after deleting old digests
+  if (count > 0) {
+    const { indexed, skipped } = await store.rebuildIndex();
+    logger?.info({ indexed, skipped }, 'rebuilt constraint index');
+    if (skipped > 0) {
+      logger?.warn({ skipped }, 'skipped legacy/unparseable digests during index rebuild');
+    }
+  }
+
   return { deleted: count, wouldDelete: 0 };
 }

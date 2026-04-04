@@ -11,9 +11,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 vi.mock('../../src/summarizer/summarizer.js', () => ({
   Summarizer: vi.fn().mockImplementation(function () {
     return {
-      summarize: vi.fn().mockResolvedValue(
-        '## What you worked on\n\nYou did stuff.\n\n## What changed\n\n- Created foo.ts'
-      ),
+      summarize: vi.fn().mockResolvedValue({
+        summary: 'You did stuff.',
+        keywords: ['foo'],
+        eliminations: [],
+        decisions: [{ chose: 'foo', over: ['bar'], because: 'simpler' }],
+        invariants: [],
+        preferences: [],
+        openThreads: [],
+      }),
     };
   }),
 }));
@@ -41,12 +47,16 @@ describe('runDigest', () => {
     });
 
     const files = await fs.readdir(tmpDigestDir);
-    expect(files.length).toBe(1);
-    expect(files[0]).toMatch(/\.md$/);
+    const mdFiles = files.filter((f) => f.endsWith('.md'));
+    expect(mdFiles.length).toBe(1);
+    expect(mdFiles[0]).toMatch(/\.md$/);
 
-    const content = await fs.readFile(path.join(tmpDigestDir, files[0]), 'utf-8');
+    const content = await fs.readFile(path.join(tmpDigestDir, mdFiles[0]), 'utf-8');
     expect(content).toContain('session_id: test-session-123');
-    expect(content).toContain('## What you worked on');
+    expect(content).toContain('"summary"');
+
+    // Verify constraint index was also written
+    expect(files).toContain('constraints.jsonl');
   });
 
   it('should skip if digest already exists for session', async () => {
@@ -65,7 +75,7 @@ describe('runDigest', () => {
       provider: 'anthropic',
     });
     const files = await fs.readdir(tmpDigestDir);
-    expect(files.length).toBe(1);
+    expect(files.filter((f) => f.endsWith('.md')).length).toBe(1);
   });
 
   it('should overwrite with --force', async () => {
@@ -85,7 +95,15 @@ describe('runDigest', () => {
       force: true,
     });
     const files = await fs.readdir(tmpDigestDir);
-    expect(files.length).toBeGreaterThanOrEqual(1);
+    expect(files.filter((f) => f.endsWith('.md')).length).toBe(1);
+
+    // Verify constraint index has no duplicates after force re-digest
+    const indexPath = path.join(tmpDigestDir, 'constraints.jsonl');
+    const indexContent = await fs.readFile(indexPath, 'utf-8');
+    const indexLines = indexContent.trim().split('\n').filter(Boolean);
+    const sessionIds = indexLines.map((l) => JSON.parse(l).sessionId);
+    const uniqueContents = new Set(indexLines);
+    expect(uniqueContents.size).toBe(indexLines.length);
   });
 
   it('should throw when transcriptPath is empty', async () => {

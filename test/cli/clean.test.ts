@@ -26,7 +26,7 @@ describe('runClean', () => {
     const result = await runClean({ digestDir: tmpDir, olderThan: '30d' });
     expect(result.deleted).toBe(1);
     const files = await fs.readdir(tmpDir);
-    expect(files.length).toBe(0);
+    expect(files.filter((f) => f.endsWith('.md')).length).toBe(0);
   });
 
   it('should support dry-run', async () => {
@@ -55,7 +55,7 @@ describe('runClean', () => {
     expect(result.deleted).toBe(1);
 
     const files = await fs.readdir(tmpDir);
-    expect(files.length).toBe(1);
+    expect(files.filter((f) => f.endsWith('.md')).length).toBe(1);
   });
 
   it('should not delete recent digests', async () => {

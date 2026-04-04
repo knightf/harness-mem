@@ -1,6 +1,6 @@
 # harness-mem
 
-A CLI tool that analyzes AI agent session logs and produces human-readable summaries. Hooks into Claude Code's session lifecycle to automatically capture what happened in each session and brief you when you return.
+A CLI tool that analyzes AI agent session logs and extracts structured, reusable constraints. Hooks into Claude Code's session lifecycle to automatically capture what happened in each session, surface relevant context mid-conversation, and brief you when you return.
 
 [![NPM Version](https://nodei.co/npm/harness-mem.png?compact=true)](https://npmjs.org/package/harness-mem)
 
@@ -56,12 +56,24 @@ Supported providers:
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "harness-mem recall"
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-4. Start using it! Just use claude code as normal, you will receive recent session summaries on new session startup.
+4. Start using it! Just use Claude Code as normal:
+   - On session start, you'll receive a recap of recent sessions
+   - On every message, relevant constraints from past sessions are automatically surfaced to the agent
 
 ## Commands
 
@@ -108,9 +120,26 @@ harness-mem recap --max-length 10000
 - `--no-limit` — No character limit
 - `--digest-dir <path>` — Override digest directory
 
+### `harness-mem recall`
+
+Retrieve relevant constraints from past sessions for the current prompt. Designed to be used as a `UserPromptSubmit` hook — it reads the user's prompt from stdin, searches the constraint index, and returns matching constraints as `additionalContext` JSON.
+
+```bash
+# As a hook: reads prompt from stdin JSON (automatic via Claude Code)
+# Manual test:
+echo '{"prompt":"fix the auth middleware"}' | harness-mem recall
+```
+
+**Flags:**
+
+- `--digest-dir <path>` — Override digest directory
+- `--max-chars <n>` — Character budget for returned context (default: `8000`)
+
+**How matching works:** The prompt is tokenized into search terms (stopwords filtered). Each term is scored against the constraint index — exact keyword match (3 points), partial keyword match (2 points), content match (1 point). Top-scoring constraints are returned within the character budget.
+
 ### `harness-mem clean`
 
-Delete old digest files.
+Delete old digest files. Also rebuilds the constraint index after deletion.
 
 ```bash
 harness-mem clean
@@ -134,12 +163,26 @@ harness-mem uses a scope engine inspired by JavaScript's execution model to anal
 - **Decay scoring** determines what's still relevant vs. what was intermediate exploration noise
 - **Side effect tracking** captures what actually changed in the world (files created/modified, commands run)
 
-The surviving context is sent to an LLM which produces a handoff-note-style summary — conversational but precise, with file paths and decision rationale.
+The surviving context is sent to an LLM which extracts **structured constraints** — not a narrative summary, but specific, reusable pieces that help future sessions converge faster:
+
+- **Eliminations** — things tried and failed, or explicitly rejected ("Don't mock the DB — it masked a broken migration")
+- **Decisions** — choices made between alternatives, with rationale ("Chose JWT over Redis sessions because stateless + compliant")
+- **Invariants** — facts about the codebase confirmed during the session ("All auth flows go through middleware/auth.ts")
+- **Preferences** — user style/workflow preferences observed ("Prefers bundled PRs for refactors")
+- **Open threads** — unfinished work or unresolved questions
+- **Keywords** — 3-5 retrieval terms extracted by the LLM for fast matching
+
+Constraints are stored as JSON (source of truth) and rendered to markdown on display.
+
+### Constraint Index
+
+At digest time, each constraint is also flattened into a JSONL index file (`~/.harness-mem/digests/constraints.jsonl`). This enables fast keyword-based retrieval without parsing individual digest files. The index is automatically rebuilt when `clean` removes old digests.
 
 ### Claude Code Hook Integration
 
-- **SessionEnd** fires when a session terminates. `harness-mem digest` reads the session info from stdin (provided by Claude Code) and produces a summary.
-- **SessionStart** fires when you open a new session. `harness-mem recap` prints recent summaries to stdout, which Claude Code injects into the agent's context — so the agent knows what you've been working on.
+- **SessionEnd** fires when a session terminates. `harness-mem digest` reads the session info from stdin (provided by Claude Code), extracts constraints, writes the digest, and appends to the constraint index.
+- **SessionStart** fires when you open a new session. `harness-mem recap` prints recent constraint summaries to stdout, which Claude Code injects into the agent's context.
+- **UserPromptSubmit** fires on every user message. `harness-mem recall` searches the constraint index for matches against the user's prompt and returns relevant constraints as additional context — so the agent benefits from past session learnings without loading everything.
 
 If the `SessionEnd` hook doesn't fire (known reliability gaps on some exit paths), `recap` has a fallback: it scans for undigested transcripts and spawns background digest processes before printing the briefing.
 
@@ -193,7 +236,7 @@ Values from `~/.harness-mem/.env` are loaded automatically at startup and inheri
 
 ## Digest Format
 
-Digests are markdown files with YAML frontmatter, stored at `~/.harness-mem/digests/`:
+Digests are markdown files with YAML frontmatter and a JSON body, stored at `~/.harness-mem/digests/`:
 
 ```markdown
 ---
@@ -204,23 +247,31 @@ model: claude-haiku-4-5-20251001
 working_directory: /home/user/repos/myproject
 ---
 
-## What you worked on
+{"summary":"Refactored auth middleware for compliance...","keywords":["auth","middleware","jwt","compliance"],"eliminations":[{"dont":"use old SessionStore interface","because":"violates compliance rules"}],"decisions":[{"chose":"stateless JWT","over":["Redis sessions"],"because":"reduces infra dependency + meets compliance"}],"invariants":[{"always":"auth flows go through middleware/auth.ts","scope":"all API routes"}],"preferences":[],"openThreads":[{"type":"todo","what":"update route handlers for new validateSession() signature","context":"current handlers use old API"}]}
+```
 
-You were refactoring the auth middleware (`src/auth/middleware.ts`)
-because the compliance team flagged session token storage...
+When displayed via `recap`, the JSON body is rendered to readable markdown:
 
-## What changed
+```markdown
+## Summary
 
-- Modified `src/auth/middleware.ts:42-89` — replaced in-memory session store
-- Updated `src/routes/auth.ts:23` — added TODO for new signature
+Refactored auth middleware for compliance...
 
-## Decisions made
+## Eliminations
 
-- Chose signed cookie approach over JWT for session management
+- **Don't:** use old SessionStore interface — **Because:** violates compliance rules
 
-## Still open
+## Decisions
 
-- Route handlers need updating to use new `validateSession()` signature
+- **Chose:** stateless JWT **Over:** Redis sessions — **Because:** reduces infra dependency + meets compliance
+
+## Invariants
+
+- **Always:** auth flows go through middleware/auth.ts — **Scope:** all API routes
+
+## Open Threads
+
+- **[TODO]** update route handlers for new validateSession() signature — **Context:** current handlers use old API
 ```
 
 ## Development
@@ -230,11 +281,21 @@ git clone <repo-url>
 cd harness
 npm install
 
-npm test            # Run tests (94 tests)
+npm test            # Run tests (131 tests)
 npm run test:watch  # Watch mode
 npm run build       # TypeScript compilation
 npm run dev         # Run CLI via tsx
 ```
+
+## Upgrading from v0.1.x (narrative digests)
+
+If you have existing digest files from before the structured constraint format, they will continue to work:
+
+- **Recap** renders legacy markdown digests as-is
+- **Clean** deletes them normally by age
+- **Recall** cannot search legacy digests (they lack the JSON structure), but they will naturally age out
+
+To re-digest old sessions with the new format, use `harness-mem digest <path> --session-id <id> --force`.
 
 ## License
 

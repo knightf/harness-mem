@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { runDigest } from './digest.js';
 import { runRecap } from './recap.js';
 import { runClean } from './clean.js';
+import { runRecall } from './recall.js';
 import { DIGEST_CHILD_ENV, loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { createInterface } from 'readline';
@@ -202,6 +203,46 @@ export function buildProgram(): Command {
       } else {
         logger.info({ deleted: result.deleted }, 'clean: completed');
         process.stdout.write(`Deleted ${result.deleted} digest(s).\n`);
+      }
+    });
+
+  program
+    .command('recall')
+    .description('Retrieve relevant constraints for a prompt (used by UserPromptSubmit hook)')
+    .option('--digest-dir <dir>', 'Directory to read constraint index from')
+    .option('--max-chars <n>', 'Maximum character length of output', '8000')
+    .action(async (options: Record<string, unknown>) => {
+      const config = await loadConfig({ flags: options });
+      const logger = createLogger();
+
+      // Read prompt from stdin (hook pipes JSON with .prompt field)
+      const stdinRaw = await readStdin();
+      let prompt = '';
+      try {
+        const parsed = JSON.parse(stdinRaw);
+        prompt = typeof parsed.prompt === 'string' ? parsed.prompt : '';
+      } catch {
+        // Plain text stdin — use as-is
+        logger.debug('recall: stdin is plain text, not JSON');
+        prompt = stdinRaw;
+      }
+
+      if (!prompt) {
+        logger.debug('recall: empty prompt, skipping');
+        return;
+      }
+
+      logger.info('recall: starting');
+      const result = await runRecall({
+        digestDir: config.digestDir,
+        prompt,
+        maxChars: parseInt(String(options.maxChars), 10) || 8000,
+        logger,
+      });
+      logger.info({ hasContext: !!result.additionalContext }, 'recall: completed');
+
+      if (result.additionalContext) {
+        process.stdout.write(JSON.stringify(result) + '\n');
       }
     });
 

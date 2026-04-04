@@ -2,6 +2,8 @@ import type { Logger } from 'pino';
 import { DigestStore } from '../storage/digest-store.js';
 import { parseDuration } from '../engine/utils.js';
 import { discoverUndigestedSessions } from './transcript-discovery.js';
+import { formatRecapToMarkdown } from '../summarizer/formatter.js';
+import type { SessionConstraints } from '../engine/types.js';
 import { spawn } from 'child_process';
 import { DIGEST_CHILD_ENV } from './config.js';
 
@@ -76,7 +78,15 @@ export async function runRecap(options: RecapOptions): Promise<string> {
       continue;
     }
 
-    const body = entry.body;
+    let body: string;
+    try {
+      const constraints: SessionConstraints = JSON.parse(entry.body);
+      body = formatRecapToMarkdown(constraints);
+    } catch {
+      // Legacy markdown digest — use as-is
+      logger?.debug({ sessionId: entry.metadata.sessionId }, 'recap: legacy markdown digest, using raw body');
+      body = entry.body;
+    }
 
     if (totalLength + body.length > options.maxLength && parts.length > 0) {
       skipped = entries.length - parts.length;
