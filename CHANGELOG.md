@@ -1,5 +1,11 @@
 # harness-mem
 
+## 0.2.0
+
+### Minor Changes
+
+- d03d2be: upgrade summarisation logic and added recall in-between user prompt inputs
+
 ## 0.1.4
 
 ### Patch Changes
