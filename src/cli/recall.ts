@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
-import fs from 'fs/promises';
+import fs from 'node:fs';
+import { createInterface } from 'node:readline';
 import path from 'path';
 import type { IndexEntry } from '../storage/digest-store.js';
 
@@ -46,37 +47,36 @@ export async function runRecall(options: RecallOptions): Promise<RecallResult> {
     return { additionalContext: '' };
   }
 
-  // Read index file
-  let lines: string[];
+  // Stream index file line-by-line to avoid buffering the whole file
+  const scored: Array<{ entry: IndexEntry; score: number }> = [];
+  let malformed = 0;
+  let lineCount = 0;
+
   try {
-    const raw = await fs.readFile(indexPath, 'utf-8');
-    lines = raw.trim().split('\n').filter(Boolean);
+    const rl = createInterface({
+      input: fs.createReadStream(indexPath, { encoding: 'utf-8' }),
+      crlfDelay: Infinity,
+    });
+
+    for await (const line of rl) {
+      if (!line) continue;
+      lineCount++;
+      try {
+        const entry: IndexEntry = JSON.parse(line);
+        const score = scoreMatch(terms, entry);
+        if (score > 0) {
+          scored.push({ entry, score });
+        }
+      } catch {
+        malformed++;
+      }
+    }
   } catch {
     logger?.debug({ indexPath }, 'recall: no constraint index found');
     return { additionalContext: '' };
   }
 
-  logger?.debug({ lineCount: lines.length }, 'recall: loaded constraint index');
-
-  if (lines.length === 0) {
-    return { additionalContext: '' };
-  }
-
-  // Score each line by keyword overlap
-  const scored: Array<{ entry: IndexEntry; score: number }> = [];
-  let malformed = 0;
-
-  for (const line of lines) {
-    try {
-      const entry: IndexEntry = JSON.parse(line);
-      const score = scoreMatch(terms, entry);
-      if (score > 0) {
-        scored.push({ entry, score });
-      }
-    } catch {
-      malformed++;
-    }
-  }
+  logger?.debug({ lineCount }, 'recall: streamed constraint index');
 
   if (malformed > 0) {
     logger?.warn({ malformed }, 'recall: skipped malformed lines in constraint index');
