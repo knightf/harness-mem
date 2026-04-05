@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { DigestStore } from '../../src/storage/digest-store.js';
+import { DigestStore, type IndexEntry } from '../../src/storage/digest-store.js';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -99,5 +99,68 @@ describe('DigestStore', () => {
 
     const files = await fs.readdir(tmpDir);
     expect(files.length).toBe(0);
+  });
+
+  it('should preserve disabled state on rebuildIndex', async () => {
+    // Write a digest that will be re-indexed
+    const constraints = {
+      summary: 'Test session',
+      keywords: ['test'],
+      eliminations: [{ dont: 'use eval', because: 'security risk' }],
+      decisions: [],
+      invariants: [],
+      preferences: [],
+      openThreads: [],
+    };
+    await store.write({
+      sessionId: 'rebuild-test',
+      timestamp: new Date().toISOString(),
+      durationMinutes: 10,
+      model: 'haiku',
+      workingDirectory: '/project',
+    }, JSON.stringify(constraints));
+    await store.appendIndex('rebuild-test', new Date().toISOString(), constraints);
+
+    // Manually mark the entry as disabled in the JSONL
+    const indexPath = path.join(tmpDir, 'constraints.jsonl');
+    const raw = await fs.readFile(indexPath, 'utf-8');
+    const entry: IndexEntry = JSON.parse(raw.trim());
+    entry.disabled = true;
+    await fs.writeFile(indexPath, JSON.stringify(entry) + '\n', 'utf-8');
+
+    // Rebuild — disabled flag should survive
+    const result = await store.rebuildIndex();
+    expect(result.indexed).toBe(1);
+
+    const rebuilt = await fs.readFile(indexPath, 'utf-8');
+    const rebuiltEntry: IndexEntry = JSON.parse(rebuilt.trim());
+    expect(rebuiltEntry.disabled).toBe(true);
+  });
+
+  it('should not set disabled on fresh entries during rebuildIndex', async () => {
+    const constraints = {
+      summary: 'Fresh session',
+      keywords: ['fresh'],
+      eliminations: [],
+      decisions: [{ chose: 'option A', over: ['option B'], because: 'faster' }],
+      invariants: [],
+      preferences: [],
+      openThreads: [],
+    };
+    await store.write({
+      sessionId: 'fresh-test',
+      timestamp: new Date().toISOString(),
+      durationMinutes: 5,
+      model: 'haiku',
+      workingDirectory: '/project',
+    }, JSON.stringify(constraints));
+
+    const result = await store.rebuildIndex();
+    expect(result.indexed).toBe(1);
+
+    const indexPath = path.join(tmpDir, 'constraints.jsonl');
+    const raw = await fs.readFile(indexPath, 'utf-8');
+    const entry: IndexEntry = JSON.parse(raw.trim());
+    expect(entry.disabled).toBeUndefined();
   });
 });

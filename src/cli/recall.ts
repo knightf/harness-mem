@@ -63,6 +63,7 @@ export async function runRecall(options: RecallOptions): Promise<RecallResult> {
       lineCount++;
       try {
         const entry: IndexEntry = JSON.parse(line);
+        if (entry.disabled) continue;
         const score = scoreMatch(terms, entry);
         if (score > 0) {
           scored.push({ entry, score });
@@ -112,7 +113,7 @@ export async function runRecall(options: RecallOptions): Promise<RecallResult> {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function extractTerms(prompt: string): string[] {
+export function extractTerms(prompt: string): string[] {
   const words = prompt
     .toLowerCase()
     .split(/[\s/\\.,:;!?()[\]{}<>'"]+/)
@@ -120,7 +121,7 @@ function extractTerms(prompt: string): string[] {
   return [...new Set(words)].slice(0, 15);
 }
 
-function scoreMatch(terms: string[], entry: IndexEntry): number {
+export function scoreMatch(terms: string[], entry: IndexEntry): number {
   let score = 0;
   const keywords = (entry.keywords ?? []).map((k) => k.toLowerCase());
   const contentLower = entry.content.toLowerCase();

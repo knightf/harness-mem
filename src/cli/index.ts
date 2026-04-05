@@ -246,6 +246,17 @@ export function buildProgram(): Command {
       }
     });
 
+  program
+    .command('manage')
+    .description('Interactive constraint control panel — browse, search, simulate recall, and toggle constraints')
+    .option('--digest-dir <dir>', 'Directory to read constraints from')
+    .action(async (options: Record<string, unknown>) => {
+      const config = await loadConfig({ flags: options });
+      const modulePath = '../tui/manage.js';
+      const { launchManage } = await import(/* webpackIgnore: true */ modulePath);
+      await launchManage({ digestDir: config.digestDir });
+    });
+
   return program;
 }
 

@@ -77,4 +77,29 @@ describe('runRecall', () => {
     const result = await runRecall({ digestDir: tmpDir, prompt: 'auth jwt middleware database migration', maxChars: 100 });
     expect(result.additionalContext.length).toBeLessThanOrEqual(200); // header + budget
   });
+
+  it('should skip disabled entries', async () => {
+    // Manually write an index with a disabled entry
+    const indexPath = path.join(tmpDir, 'constraints.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'elimination', content: "Don't use old SessionStore", keywords: ['auth', 'session'], sessionId: 's1', timestamp: '2026-04-01T10:00:00Z', disabled: true }),
+      JSON.stringify({ type: 'decision', content: 'Chose stateless JWT', keywords: ['auth', 'jwt'], sessionId: 's1', timestamp: '2026-04-01T10:00:00Z' }),
+    ];
+    await fs.writeFile(indexPath, lines.join('\n') + '\n', 'utf-8');
+
+    const result = await runRecall({ digestDir: tmpDir, prompt: 'auth session jwt' });
+    expect(result.additionalContext).not.toContain('SessionStore');
+    expect(result.additionalContext).toContain('JWT');
+  });
+
+  it('should include entries without disabled field (backward compat)', async () => {
+    const indexPath = path.join(tmpDir, 'constraints.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'decision', content: 'Chose stateless JWT', keywords: ['auth', 'jwt'], sessionId: 's1', timestamp: '2026-04-01T10:00:00Z' }),
+    ];
+    await fs.writeFile(indexPath, lines.join('\n') + '\n', 'utf-8');
+
+    const result = await runRecall({ digestDir: tmpDir, prompt: 'auth jwt' });
+    expect(result.additionalContext).toContain('JWT');
+  });
 });

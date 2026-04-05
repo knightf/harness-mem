@@ -171,6 +171,21 @@ export class DigestStore {
    * Rebuilds the JSONL index from all remaining digest files.
    */
   async rebuildIndex(): Promise<{ indexed: number; skipped: number }> {
+    // Preserve disabled state from existing index before rebuilding
+    const disabledSet = new Map<string, boolean>();
+    try {
+      const existing = await fs.readFile(this.indexPath, 'utf-8');
+      for (const line of existing.split('\n')) {
+        if (!line) continue;
+        try {
+          const e: IndexEntry = JSON.parse(line);
+          if (e.disabled) {
+            disabledSet.set(`${e.type}|${e.sessionId}|${e.content}`, true);
+          }
+        } catch { /* skip malformed */ }
+      }
+    } catch { /* no existing index */ }
+
     const entries = await this.query();
     const lines: IndexEntry[] = [];
     let skipped = 0;
@@ -182,6 +197,14 @@ export class DigestStore {
       } catch {
         // Legacy markdown digest — cannot index
         skipped++;
+      }
+    }
+
+    // Restore disabled flags
+    for (const line of lines) {
+      const key = `${line.type}|${line.sessionId}|${line.content}`;
+      if (disabledSet.has(key)) {
+        line.disabled = true;
       }
     }
 
@@ -219,6 +242,7 @@ export interface IndexEntry {
   keywords: string[];
   sessionId: string;
   timestamp: string;
+  disabled?: boolean;
 }
 
 function flattenConstraints(sessionId: string, timestamp: string, c: SessionConstraints): IndexEntry[] {
