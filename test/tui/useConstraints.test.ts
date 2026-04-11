@@ -18,8 +18,6 @@ const ENTRIES: IndexEntry[] = [
   { type: 'decision', content: 'Chose React over Vue — because team familiarity', keywords: ['react', 'vue', 'frontend'], sessionId: 's1', timestamp: '2026-04-01T10:00:00Z' },
   { type: 'invariant', content: 'Always use TypeScript — scope: all source files', keywords: ['typescript', 'types'], sessionId: 's2', timestamp: '2026-04-02T10:00:00Z' },
   { type: 'preference', content: 'Prefer ESM over CJS — context: Node.js projects', keywords: ['esm', 'cjs', 'modules'], sessionId: 's2', timestamp: '2026-04-02T10:00:00Z' },
-  { type: 'todo', content: 'Add rollback migration — context: schema v3', keywords: ['migration', 'database'], sessionId: 's3', timestamp: '2026-04-03T10:00:00Z' },
-  { type: 'question', content: 'Should we use Redis? — context: caching layer', keywords: ['redis', 'caching'], sessionId: 's3', timestamp: '2026-04-03T10:00:00Z' },
 ];
 
 function makeJsonl(entries: IndexEntry[]): string {
@@ -41,9 +39,9 @@ afterEach(async () => {
 describe('loadConstraintsFromString', () => {
   it('should parse JSONL correctly', () => {
     const result = loadConstraintsFromString(makeJsonl(ENTRIES));
-    expect(result).toHaveLength(6);
+    expect(result).toHaveLength(4);
     expect(result[0].type).toBe('elimination');
-    expect(result[5].type).toBe('question');
+    expect(result[3].type).toBe('preference');
   });
 
   it('should handle empty string', () => {
@@ -62,7 +60,7 @@ describe('loadConstraintsFromString', () => {
 describe('filterByTab', () => {
   it('should return all entries for "all" tab', () => {
     const result = filterByTab('all', ENTRIES);
-    expect(result).toHaveLength(6);
+    expect(result).toHaveLength(4);
   });
 
   it('should filter by specific type', () => {
@@ -72,9 +70,9 @@ describe('filterByTab', () => {
   });
 
   it('should preserve original index', () => {
-    const result = filterByTab('question', ENTRIES);
+    const result = filterByTab('preference', ENTRIES);
     expect(result).toHaveLength(1);
-    expect(result[0].index).toBe(5);
+    expect(result[0].index).toBe(3);
   });
 });
 
@@ -83,7 +81,7 @@ describe('filterByTab', () => {
 describe('filterBySearch', () => {
   it('should return all entries for empty query', () => {
     const result = filterBySearch('', ENTRIES);
-    expect(result).toHaveLength(6);
+    expect(result).toHaveLength(4);
   });
 
   it('should match keyword existence', () => {
@@ -162,7 +160,7 @@ describe('saveConstraints', () => {
 
     const content = await fs.readFile(indexPath, 'utf-8');
     const lines = content.trim().split('\n');
-    expect(lines).toHaveLength(6);
+    expect(lines).toHaveLength(4);
 
     const first: IndexEntry = JSON.parse(lines[0]);
     expect(first.type).toBe('elimination');

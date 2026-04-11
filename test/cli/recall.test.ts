@@ -53,7 +53,7 @@ describe('runRecall', () => {
   it('should return database constraints for db-related prompt', async () => {
     const result = await runRecall({ digestDir: tmpDir, prompt: 'update the database migration' });
     expect(result.additionalContext).toContain('mock the database');
-    expect(result.additionalContext).toContain('rollback');
+    expect(result.additionalContext).not.toContain('rollback');
   });
 
   it('should return empty for unrelated prompt', async () => {
