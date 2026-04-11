@@ -163,4 +163,28 @@ describe('DigestStore', () => {
     const entry: IndexEntry = JSON.parse(raw.trim());
     expect(entry.disabled).toBeUndefined();
   });
+
+  it('should exclude openThreads from index', async () => {
+    const constraints = {
+      summary: 'Session with todos',
+      keywords: ['test'],
+      eliminations: [{ dont: 'use eval', because: 'security risk' }],
+      decisions: [],
+      invariants: [],
+      preferences: [],
+      openThreads: [
+        { type: 'todo' as const, what: 'fix the tests', context: 'broken suite' },
+        { type: 'question' as const, what: 'should we use Redis?', context: 'caching' },
+      ],
+    };
+    await store.appendIndex('thread-test', new Date().toISOString(), constraints);
+
+    const indexPath = path.join(tmpDir, 'constraints.jsonl');
+    const raw = await fs.readFile(indexPath, 'utf-8');
+    const entries = raw.trim().split('\n').map((line) => JSON.parse(line));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].type).toBe('elimination');
+    expect(entries.every((e: { type: string }) => e.type !== 'todo' && e.type !== 'question')).toBe(true);
+  });
 });

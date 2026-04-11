@@ -266,11 +266,5 @@ function flattenConstraints(sessionId: string, timestamp: string, c: SessionCons
     if (!p.prefer) continue;
     entries.push({ type: 'preference', content: `Prefer ${p.prefer} over ${p.over ?? 'alternatives'} — context: ${p.context ?? 'general'}`, keywords: kw, sessionId, timestamp });
   }
-  for (const t of c.openThreads ?? []) {
-    if (!t.what) continue;
-    const type = t.type === 'question' ? 'question' : 'todo';
-    entries.push({ type, content: `${t.what} — context: ${t.context ?? ''}`, keywords: kw, sessionId, timestamp });
-  }
-
   return entries;
 }
