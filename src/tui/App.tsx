@@ -5,6 +5,7 @@ import { ConstraintList } from './ConstraintList.js';
 import { SearchInput } from './SearchInput.js';
 import { useConstraints } from './useConstraints.js';
 import type { ScoredEntry } from './useConstraints.js';
+import { DetailPane } from './DetailPane.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ export function App({ digestDir }: AppProps): React.ReactElement {
   const [mode, setMode] = useState<AppMode>('browse');
   const [inputValue, setInputValue] = useState('');
   const [filteredItems, setFilteredItems] = useState<ScoredEntry[] | null>(null);
+  const [detailVisible, setDetailVisible] = useState(true);
 
   // Compute display items
   const displayItems: ScoredEntry[] = filteredItems ?? filterByTab(activeTab, entries);
@@ -145,6 +147,11 @@ export function App({ digestDir }: AppProps): React.ReactElement {
       setInputValue('');
       return;
     }
+
+    if (input === 'p') {
+      setDetailVisible((v) => !v);
+      return;
+    }
   });
 
   if (loading) {
@@ -187,10 +194,16 @@ export function App({ digestDir }: AppProps): React.ReactElement {
       {/* Constraint list */}
       <ConstraintList items={displayItems} cursor={cursor} />
 
+      {/* Detail pane */}
+      <DetailPane
+        entry={displayItems[cursor]?.entry ?? null}
+        visible={detailVisible}
+      />
+
       {/* Footer */}
       <Box marginTop={1}>
         <Text color="gray">
-          Tab: switch type | ↑↓/jk: navigate | Space: toggle | /: search | s: simulate | q: save & quit
+          Tab: switch type | ↑↓/jk: navigate | Space: toggle | p: detail | /: search | s: simulate | q: save & quit
         </Text>
       </Box>
     </Box>
