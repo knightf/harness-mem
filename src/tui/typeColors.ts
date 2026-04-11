@@ -1,10 +1,6 @@
-import type { IndexEntryType } from '../storage/digest-store.js';
-
-export const TYPE_COLORS: Record<IndexEntryType, string> = {
+export const TYPE_COLORS: Record<string, string> = {
   elimination: 'red',
   decision: 'blue',
   invariant: 'green',
   preference: 'yellow',
-  todo: 'magenta',
-  question: 'cyan',
 };

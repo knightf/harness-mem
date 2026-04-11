@@ -10,8 +10,6 @@ const TABS: Array<string> = [
   'decision',
   'invariant',
   'preference',
-  'todo',
-  'question',
 ];
 
 interface TabBarProps {
