@@ -1,17 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { IndexEntry, IndexEntryType } from '../storage/digest-store.js';
-
-// ─── Type colors ─────────────────────────────────────────────────────────────
-
-const TYPE_COLORS: Record<IndexEntryType, string> = {
-  elimination: 'red',
-  decision: 'blue',
-  invariant: 'green',
-  preference: 'yellow',
-  todo: 'magenta',
-  question: 'cyan',
-};
+import type { IndexEntry } from '../storage/digest-store.js';
+import { TYPE_COLORS } from './typeColors.js';
 
 // ─── ConstraintRow ───────────────────────────────────────────────────────────
 
