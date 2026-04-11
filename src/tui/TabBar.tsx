@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { IndexEntry, IndexEntryType } from '../storage/digest-store.js';
+import type { IndexEntry } from '../storage/digest-store.js';
 
 // ─── TabBar ──────────────────────────────────────────────────────────────────
 

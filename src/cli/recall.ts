@@ -64,6 +64,7 @@ export async function runRecall(options: RecallOptions): Promise<RecallResult> {
       try {
         const entry: IndexEntry = JSON.parse(line);
         if (entry.disabled) continue;
+        if (entry.type === 'todo' || entry.type === 'question') continue;
         const score = scoreMatch(terms, entry);
         if (score > 0) {
           scored.push({ entry, score });

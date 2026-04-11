@@ -32,7 +32,9 @@ export function loadConstraintsFromString(content: string): IndexEntry[] {
   for (const line of content.split('\n')) {
     if (!line.trim()) continue;
     try {
-      entries.push(JSON.parse(line) as IndexEntry);
+      const entry = JSON.parse(line) as IndexEntry;
+      if (entry.type === 'todo' || entry.type === 'question') continue;
+      entries.push(entry);
     } catch { /* skip malformed */ }
   }
   return entries;
