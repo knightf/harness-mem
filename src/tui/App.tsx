@@ -109,6 +109,8 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
 
   useInput((input, key) => {
     // Confirm-delete mode: `y` confirms, anything else cancels. No other bindings fire.
+    // NOTE: this branch MUST run before the generic non-browse guard below —
+    // otherwise `y` would be swallowed as "unhandled non-browse input".
     if (mode === 'confirmDelete') {
       if (input === 'y') {
         const item = displayItems[cursor];
