@@ -10,6 +10,8 @@ import {
   filterBySearch,
   simulateRecall,
   saveConstraints,
+  filterKeptEntries,
+  filterDeletedFromPool,
 } from '../../src/tui/useConstraints.js';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -236,5 +238,63 @@ describe('filterByProject', () => {
   it('preserves entry identity (no copies)', () => {
     const result = filterByProject(SCOPED_ENTRIES, PROJECT_A);
     expect(result[0]).toBe(SCOPED_ENTRIES[0]);
+  });
+});
+
+// ─── filterKeptEntries ───────────────────────────────────────────────────────
+
+describe('filterKeptEntries', () => {
+  it('returns all entries when nothing is deleted', () => {
+    const result = filterKeptEntries(ENTRIES, new Set());
+    expect(result).toHaveLength(ENTRIES.length);
+    expect(result).toEqual(ENTRIES);
+  });
+
+  it('filters out entries whose index is in the set', () => {
+    const result = filterKeptEntries(ENTRIES, new Set([0, 2]));
+    expect(result).toHaveLength(2);
+    expect(result[0].type).toBe('decision');
+    expect(result[1].type).toBe('preference');
+  });
+
+  it('returns empty array when all indices are deleted', () => {
+    const result = filterKeptEntries(ENTRIES, new Set([0, 1, 2, 3]));
+    expect(result).toHaveLength(0);
+  });
+
+  it('ignores out-of-range indices in the set', () => {
+    const result = filterKeptEntries(ENTRIES, new Set([99]));
+    expect(result).toHaveLength(ENTRIES.length);
+  });
+});
+
+// ─── filterDeletedFromPool ───────────────────────────────────────────────────
+
+describe('filterDeletedFromPool', () => {
+  it('returns the whole input when nothing is deleted', () => {
+    const { pool, poolToInputIdx } = filterDeletedFromPool(ENTRIES, ENTRIES, new Set());
+    expect(pool).toHaveLength(ENTRIES.length);
+    expect(poolToInputIdx).toEqual([0, 1, 2, 3]);
+  });
+
+  it('drops entries whose original index is in the deleted set', () => {
+    const { pool, poolToInputIdx } = filterDeletedFromPool(ENTRIES, ENTRIES, new Set([1]));
+    expect(pool).toHaveLength(3);
+    expect(pool.map((e) => e.type)).toEqual(['elimination', 'invariant', 'preference']);
+    expect(poolToInputIdx).toEqual([0, 2, 3]);
+  });
+
+  it('handles an input that is a subset of entries (project-filtered pool)', () => {
+    const subset = [ENTRIES[1], ENTRIES[3]];
+    const { pool, poolToInputIdx } = filterDeletedFromPool(subset, ENTRIES, new Set([3]));
+    expect(pool).toHaveLength(1);
+    expect(pool[0]).toBe(ENTRIES[1]);
+    expect(poolToInputIdx).toEqual([0]);
+  });
+
+  it('returns empty pool when the entire input is deleted', () => {
+    const { pool, poolToInputIdx } = filterDeletedFromPool(ENTRIES, ENTRIES, new Set([0, 1, 2, 3]));
+    expect(pool).toHaveLength(0);
+    expect(poolToInputIdx).toEqual([]);
   });
 });

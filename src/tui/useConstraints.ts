@@ -120,6 +120,39 @@ export function simulateRecall(prompt: string, entries: IndexEntry[]): ScoredEnt
   return scored;
 }
 
+/**
+ * Returns only entries whose original index is NOT in the deleted set.
+ * Used by the hook's save() path to write the post-delete jsonl.
+ */
+export function filterKeptEntries(
+  entries: IndexEntry[],
+  deletedIndices: Set<number>,
+): IndexEntry[] {
+  return entries.filter((_, i) => !deletedIndices.has(i));
+}
+
+/**
+ * Given a pool of entries (possibly a subset of the full `entries` array, e.g.
+ * project-filtered), remove any entry whose original-array index is in
+ * `deletedIndices`. Returns the filtered pool along with a mapping so the
+ * caller can remap result indices back to positions in the original input.
+ */
+export function filterDeletedFromPool(
+  input: IndexEntry[],
+  entries: IndexEntry[],
+  deletedIndices: Set<number>,
+): { pool: IndexEntry[]; poolToInputIdx: number[] } {
+  const pool: IndexEntry[] = [];
+  const poolToInputIdx: number[] = [];
+  for (let i = 0; i < input.length; i++) {
+    const originalIdx = entries.indexOf(input[i]);
+    if (originalIdx !== -1 && deletedIndices.has(originalIdx)) continue;
+    pool.push(input[i]);
+    poolToInputIdx.push(i);
+  }
+  return { pool, poolToInputIdx };
+}
+
 export async function saveConstraints(indexPath: string, entries: IndexEntry[]): Promise<void> {
   const content = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
   const tmpPath = indexPath + '.tmp';
