@@ -159,9 +159,14 @@ export class DigestStore {
   /**
    * Appends flattened constraints from a session to the JSONL index.
    */
-  async appendIndex(sessionId: string, timestamp: string, constraints: SessionConstraints): Promise<void> {
+  async appendIndex(
+    sessionId: string,
+    timestamp: string,
+    workingDirectory: string,
+    constraints: SessionConstraints,
+  ): Promise<void> {
     await fs.mkdir(this.digestDir, { recursive: true });
-    const lines = flattenConstraints(sessionId, timestamp, constraints);
+    const lines = flattenConstraints(sessionId, timestamp, workingDirectory, constraints);
     if (lines.length === 0) return;
     const content = lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
     await fs.appendFile(this.indexPath, content, 'utf-8');
@@ -171,16 +176,19 @@ export class DigestStore {
    * Rebuilds the JSONL index from all remaining digest files.
    */
   async rebuildIndex(): Promise<{ indexed: number; skipped: number }> {
-    // Preserve disabled state from existing index before rebuilding
-    const disabledSet = new Map<string, boolean>();
+    // Preserve disabled and shared state from existing index before rebuilding
+    const stateMap = new Map<string, { disabled?: boolean; shared?: boolean }>();
     try {
       const existing = await fs.readFile(this.indexPath, 'utf-8');
       for (const line of existing.split('\n')) {
         if (!line) continue;
         try {
           const e: IndexEntry = JSON.parse(line);
-          if (e.disabled) {
-            disabledSet.set(`${e.type}|${e.sessionId}|${e.content}`, true);
+          if (e.disabled || e.shared) {
+            stateMap.set(`${e.type}|${e.sessionId}|${e.content}`, {
+              disabled: e.disabled,
+              shared: e.shared,
+            });
           }
         } catch { /* skip malformed */ }
       }
@@ -193,18 +201,27 @@ export class DigestStore {
     for (const entry of entries) {
       try {
         const constraints: SessionConstraints = JSON.parse(entry.body);
-        lines.push(...flattenConstraints(entry.metadata.sessionId, entry.metadata.timestamp, constraints));
+        lines.push(
+          ...flattenConstraints(
+            entry.metadata.sessionId,
+            entry.metadata.timestamp,
+            entry.metadata.workingDirectory ?? '',
+            constraints,
+          ),
+        );
       } catch {
         // Legacy markdown digest — cannot index
         skipped++;
       }
     }
 
-    // Restore disabled flags
+    // Restore disabled and shared flags
     for (const line of lines) {
       const key = `${line.type}|${line.sessionId}|${line.content}`;
-      if (disabledSet.has(key)) {
-        line.disabled = true;
+      const prior = stateMap.get(key);
+      if (prior) {
+        if (prior.disabled) line.disabled = true;
+        if (prior.shared) line.shared = true;
       }
     }
 
@@ -242,29 +259,77 @@ export interface IndexEntry {
   keywords: string[];
   sessionId: string;
   timestamp: string;
+  workingDirectory?: string;
   disabled?: boolean;
+  shared?: boolean;
 }
 
-function flattenConstraints(sessionId: string, timestamp: string, c: SessionConstraints): IndexEntry[] {
+function flattenConstraints(
+  sessionId: string,
+  timestamp: string,
+  workingDirectory: string,
+  c: SessionConstraints,
+): IndexEntry[] {
   const kw = c.keywords ?? [];
   const entries: IndexEntry[] = [];
+  const wd = workingDirectory || undefined;
 
   for (const e of c.eliminations ?? []) {
     if (!e.dont || !e.because) continue;
-    entries.push({ type: 'elimination', content: `Don't ${e.dont} — because ${e.because}`, keywords: kw, sessionId, timestamp });
+    entries.push({ type: 'elimination', content: `Don't ${e.dont} — because ${e.because}`, keywords: kw, sessionId, timestamp, workingDirectory: wd });
   }
   for (const d of c.decisions ?? []) {
     if (!d.chose || !d.because) continue;
     const over = Array.isArray(d.over) ? d.over.join(', ') : '';
-    entries.push({ type: 'decision', content: `Chose ${d.chose} over ${over} — because ${d.because}`, keywords: kw, sessionId, timestamp });
+    entries.push({ type: 'decision', content: `Chose ${d.chose} over ${over} — because ${d.because}`, keywords: kw, sessionId, timestamp, workingDirectory: wd });
   }
   for (const i of c.invariants ?? []) {
     if (!i.always) continue;
-    entries.push({ type: 'invariant', content: `Always ${i.always} — scope: ${i.scope ?? 'general'}`, keywords: kw, sessionId, timestamp });
+    entries.push({ type: 'invariant', content: `Always ${i.always} — scope: ${i.scope ?? 'general'}`, keywords: kw, sessionId, timestamp, workingDirectory: wd });
   }
   for (const p of c.preferences ?? []) {
     if (!p.prefer) continue;
-    entries.push({ type: 'preference', content: `Prefer ${p.prefer} over ${p.over ?? 'alternatives'} — context: ${p.context ?? 'general'}`, keywords: kw, sessionId, timestamp });
+    entries.push({ type: 'preference', content: `Prefer ${p.prefer} over ${p.over ?? 'alternatives'} — context: ${p.context ?? 'general'}`, keywords: kw, sessionId, timestamp, workingDirectory: wd });
   }
   return entries;
+}
+
+// ─── Project matching ───────────────────────────────────────────────────────
+
+/**
+ * Normalizes a project path for prefix-aware comparison: trims, removes
+ * trailing separators. Returns empty string for falsy input.
+ */
+export function normalizeProjectPath(p: string | undefined | null): string {
+  if (!p) return '';
+  let normalized = path.normalize(p.trim());
+  // Strip trailing separator (but keep root '/')
+  if (normalized.length > 1 && normalized.endsWith(path.sep)) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
+}
+
+/**
+ * Returns true if the entry's stored cwd is "the same project" as the current
+ * working directory. Match is prefix-aware: either path may be a parent of the
+ * other (e.g. you can `cd` into a subdirectory of where the digest was made,
+ * or up to the project root, and still match). Path-separator boundaries are
+ * respected so `/foo` does not match `/foobar`.
+ *
+ * Returns false when entryCwd is empty/undefined — legacy entries are
+ * project-less and only surface via `--all-projects` or `shared: true`.
+ */
+export function matchesProject(
+  entryCwd: string | undefined | null,
+  currentCwd: string | undefined | null,
+): boolean {
+  const entry = normalizeProjectPath(entryCwd);
+  const current = normalizeProjectPath(currentCwd);
+  if (!entry || !current) return false;
+  if (entry === current) return true;
+  const sep = path.sep;
+  if (current.startsWith(entry + sep)) return true;
+  if (entry.startsWith(current + sep)) return true;
+  return false;
 }

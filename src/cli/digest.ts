@@ -117,7 +117,7 @@ export async function runDigest(options: DigestOptions): Promise<void> {
     const { indexed, skipped } = await store.rebuildIndex();
     logger?.debug({ indexed, skipped }, 'rebuilt constraint index after force digest');
   } else {
-    await store.appendIndex(sessionId, digestMeta.timestamp, constraints);
+    await store.appendIndex(sessionId, digestMeta.timestamp, digestMeta.workingDirectory, constraints);
   }
   logger?.info({ sessionId, digestDir, ...constraintCounts }, 'digest written');
 }

@@ -77,4 +77,34 @@ describe('DetailPane', () => {
     expect(output).toContain('Chose PostgreSQL');
     expect(output).not.toContain('keywords:');
   });
+
+  it('shows full workingDirectory path and shared status', () => {
+    const entry = makeEntry({ workingDirectory: '/work/example-project', shared: true });
+    const { lastFrame } = render(
+      React.createElement(DetailPane, { entry, visible: true }),
+    );
+    const output = lastFrame() ?? '';
+    expect(output).toContain('/work/example-project');
+    expect(output).toContain('shared globally:');
+    expect(output).toContain('yes');
+  });
+
+  it('shows (unknown) when workingDirectory is missing', () => {
+    const entry = makeEntry({ workingDirectory: undefined });
+    const { lastFrame } = render(
+      React.createElement(DetailPane, { entry, visible: true }),
+    );
+    const output = lastFrame() ?? '';
+    expect(output).toContain('(unknown)');
+  });
+
+  it('shows shared as no by default', () => {
+    const entry = makeEntry();
+    const { lastFrame } = render(
+      React.createElement(DetailPane, { entry, visible: true }),
+    );
+    const output = lastFrame() ?? '';
+    expect(output).toContain('shared globally:');
+    expect(output).toContain('no');
+  });
 });

@@ -2,7 +2,7 @@ import type { Logger } from 'pino';
 import fs from 'node:fs';
 import { createInterface } from 'node:readline';
 import path from 'path';
-import type { IndexEntry } from '../storage/digest-store.js';
+import { matchesProject, type IndexEntry } from '../storage/digest-store.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,10 @@ interface RecallOptions {
   digestDir: string;
   prompt: string;
   maxChars?: number;
+  /** Current working directory used for project-scoped filtering. */
+  cwd?: string;
+  /** When true, skip project filtering and include constraints from all projects. */
+  allProjects?: boolean;
   logger?: Logger;
 }
 
@@ -36,7 +40,7 @@ const STOPWORDS = new Set([
 // ─── runRecall ───────────────────────────────────────────────────────────────
 
 export async function runRecall(options: RecallOptions): Promise<RecallResult> {
-  const { digestDir, prompt, maxChars = 8000, logger } = options;
+  const { digestDir, prompt, maxChars = 8000, cwd, allProjects = false, logger } = options;
   const indexPath = path.join(digestDir, 'constraints.jsonl');
 
   // Extract search terms from prompt
@@ -65,6 +69,7 @@ export async function runRecall(options: RecallOptions): Promise<RecallResult> {
         const entry: IndexEntry = JSON.parse(line);
         if (entry.disabled) continue;
         if (entry.type === 'todo' || entry.type === 'question') continue;
+        if (!allProjects && !entry.shared && !matchesProject(entry.workingDirectory, cwd ?? '')) continue;
         const score = scoreMatch(terms, entry);
         if (score > 0) {
           scored.push({ entry, score });

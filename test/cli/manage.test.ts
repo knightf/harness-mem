@@ -18,16 +18,16 @@ describe('launchManage', () => {
     vi.clearAllMocks();
   });
 
-  it('should call ink render with App component and digestDir prop', async () => {
+  it('should call ink render with App component and digestDir + cwd props', async () => {
     const { launchManage } = await import('../../src/tui/manage.js');
     const { render } = await import('ink');
     const React = (await import('react')).default;
 
-    await launchManage({ digestDir: '/tmp/test-digests' });
+    await launchManage({ digestDir: '/tmp/test-digests', cwd: '/work/proj-a' });
 
     expect(React.createElement).toHaveBeenCalledWith(
       expect.any(Function),
-      { digestDir: '/tmp/test-digests' },
+      { digestDir: '/tmp/test-digests', cwd: '/work/proj-a' },
     );
     expect(render).toHaveBeenCalled();
   });

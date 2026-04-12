@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import type { IndexEntry } from '../storage/digest-store.js';
+import { matchesProject, type IndexEntry } from '../storage/digest-store.js';
 import { extractTerms, scoreMatch } from '../cli/recall.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -19,8 +19,10 @@ export interface UseConstraintsResult {
   error: string | null;
   dirty: boolean;
   toggleDisabled: (originalIndex: number) => void;
+  toggleShared: (originalIndex: number) => void;
   save: () => Promise<void>;
   filterByTab: (tab: string, entries: IndexEntry[]) => ScoredEntry[];
+  filterByProject: (entries: IndexEntry[]) => IndexEntry[];
   filterBySearch: (query: string, entries: IndexEntry[]) => ScoredEntry[];
   simulateRecall: (prompt: string, entries: IndexEntry[]) => ScoredEntry[];
 }
@@ -45,6 +47,25 @@ export function filterByTab(tab: string, entries: IndexEntry[]): ScoredEntry[] {
   for (let i = 0; i < entries.length; i++) {
     if (tab === 'all' || entries[i].type === tab) {
       result.push({ entry: entries[i], index: i });
+    }
+  }
+  return result;
+}
+
+/**
+ * Returns only entries belonging to the current project. An entry "belongs" to
+ * the current project if its workingDirectory matches (prefix-aware) OR if it
+ * is marked as globally shared. Preserves entry identity (no copies).
+ */
+export function filterByProject(entries: IndexEntry[], currentCwd: string): IndexEntry[] {
+  const result: IndexEntry[] = [];
+  for (const entry of entries) {
+    if (entry.shared) {
+      result.push(entry);
+      continue;
+    }
+    if (matchesProject(entry.workingDirectory, currentCwd)) {
+      result.push(entry);
     }
   }
   return result;
@@ -108,7 +129,7 @@ export async function saveConstraints(indexPath: string, entries: IndexEntry[]):
 
 // ─── React hook ──────────────────────────────────────────────────────────────
 
-export function useConstraints(digestDir: string): UseConstraintsResult {
+export function useConstraints(digestDir: string, currentCwd: string): UseConstraintsResult {
   const [entries, setEntries] = useState<IndexEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,10 +161,24 @@ export function useConstraints(digestDir: string): UseConstraintsResult {
     setDirty(true);
   }, []);
 
+  const toggleShared = useCallback((originalIndex: number) => {
+    setEntries((prev) => {
+      const next = [...prev];
+      next[originalIndex] = { ...next[originalIndex], shared: !next[originalIndex].shared };
+      return next;
+    });
+    setDirty(true);
+  }, []);
+
   const save = useCallback(async () => {
     await saveConstraints(indexPath, entries);
     setDirty(false);
   }, [indexPath, entries]);
+
+  const filterByProjectBound = useCallback(
+    (input: IndexEntry[]) => filterByProject(input, currentCwd),
+    [currentCwd],
+  );
 
   return {
     entries,
@@ -151,8 +186,10 @@ export function useConstraints(digestDir: string): UseConstraintsResult {
     error,
     dirty,
     toggleDisabled,
+    toggleShared,
     save,
     filterByTab,
+    filterByProject: filterByProjectBound,
     filterBySearch,
     simulateRecall,
   };

@@ -23,6 +23,13 @@ export function DetailPane({ entry, visible }: DetailPaneProps): React.ReactElem
       {hasKeywords && (
         <Text color="gray" dimColor>keywords: {entry.keywords.join(', ')}</Text>
       )}
+      <Text color="gray" dimColor>
+        project: <Text color="magentaBright">{entry.workingDirectory || '(unknown)'}</Text>
+      </Text>
+      <Text color="gray" dimColor>
+        shared globally: <Text color={entry.shared ? 'cyanBright' : 'gray'}>{entry.shared ? 'yes' : 'no'}</Text>
+        {'  '}enabled: <Text color={entry.disabled ? 'red' : 'green'}>{entry.disabled ? 'no' : 'yes'}</Text>
+      </Text>
       <Text color="gray">{'┈'.repeat(process.stdout.columns || 80)}</Text>
     </Box>
   );

@@ -156,6 +156,7 @@ export function buildProgram(): Command {
     .option('--max-length <n>', 'Maximum total character length of output')
     .option('--no-limit', 'Show all sessions without length limit')
     .option('--digest-dir <dir>', 'Directory to read digests from')
+    .option('--all-projects', 'Include digests from all projects (default: current project only)', false)
     .action(async (options: Record<string, unknown>) => {
       const config = await loadConfig({ flags: options });
       const logger = createLogger();
@@ -166,11 +167,18 @@ export function buildProgram(): Command {
           ? parseInt(options.maxLength, 10)
           : config.recap.maxLength;
 
-      logger.info({ since: typeof options.since === 'string' ? options.since : config.recap.since }, 'recap: starting');
+      const allProjects = (options.allProjects as boolean | undefined) ?? false;
+      const cwd = process.cwd();
+      logger.info(
+        { since: typeof options.since === 'string' ? options.since : config.recap.since, cwd, allProjects },
+        'recap: starting',
+      );
       const result = await runRecap({
         digestDir: config.digestDir,
         since: typeof options.since === 'string' ? options.since : config.recap.since,
         maxLength,
+        cwd,
+        allProjects,
         logger,
       });
       logger.info('recap: completed');
@@ -211,6 +219,7 @@ export function buildProgram(): Command {
     .description('Retrieve relevant constraints for a prompt (used by UserPromptSubmit hook)')
     .option('--digest-dir <dir>', 'Directory to read constraint index from')
     .option('--max-chars <n>', 'Maximum character length of output', '8000')
+    .option('--all-projects', 'Include constraints from all projects (default: current project + globally shared)', false)
     .action(async (options: Record<string, unknown>) => {
       const config = await loadConfig({ flags: options });
       const logger = createLogger();
@@ -218,9 +227,11 @@ export function buildProgram(): Command {
       // Read prompt from stdin (hook pipes JSON with .prompt field)
       const stdinRaw = await readStdin();
       let prompt = '';
+      let payloadCwd = '';
       try {
         const parsed = JSON.parse(stdinRaw);
         prompt = typeof parsed.prompt === 'string' ? parsed.prompt : '';
+        payloadCwd = typeof parsed.cwd === 'string' ? parsed.cwd : '';
       } catch {
         // Plain text stdin — use as-is
         logger.debug('recall: stdin is plain text, not JSON');
@@ -232,11 +243,15 @@ export function buildProgram(): Command {
         return;
       }
 
-      logger.info('recall: starting');
+      const allProjects = (options.allProjects as boolean | undefined) ?? false;
+      const cwd = payloadCwd || process.cwd();
+      logger.info({ cwd, allProjects }, 'recall: starting');
       const result = await runRecall({
         digestDir: config.digestDir,
         prompt,
         maxChars: parseInt(String(options.maxChars), 10) || 8000,
+        cwd,
+        allProjects,
         logger,
       });
       logger.info({ hasContext: !!result.additionalContext }, 'recall: completed');
@@ -254,7 +269,7 @@ export function buildProgram(): Command {
       const config = await loadConfig({ flags: options });
       const modulePath = '../tui/manage.js';
       const { launchManage } = await import(/* webpackIgnore: true */ modulePath);
-      await launchManage({ digestDir: config.digestDir });
+      await launchManage({ digestDir: config.digestDir, cwd: process.cwd() });
     });
 
   return program;

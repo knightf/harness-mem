@@ -6,6 +6,7 @@ import type { IndexEntry } from '../../src/storage/digest-store.js';
 import {
   loadConstraintsFromString,
   filterByTab,
+  filterByProject,
   filterBySearch,
   simulateRecall,
   saveConstraints,
@@ -178,5 +179,62 @@ describe('saveConstraints', () => {
     const content = await fs.readFile(indexPath, 'utf-8');
     const first: IndexEntry = JSON.parse(content.split('\n')[0]);
     expect(first.disabled).toBe(true);
+  });
+
+  it('should persist shared and workingDirectory fields', async () => {
+    const indexPath = path.join(tmpDir, 'constraints.jsonl');
+    const modified: IndexEntry[] = [
+      { ...ENTRIES[0], shared: true, workingDirectory: '/work/proj-a' },
+      ...ENTRIES.slice(1),
+    ];
+    await saveConstraints(indexPath, modified);
+
+    const content = await fs.readFile(indexPath, 'utf-8');
+    const first: IndexEntry = JSON.parse(content.split('\n')[0]);
+    expect(first.shared).toBe(true);
+    expect(first.workingDirectory).toBe('/work/proj-a');
+  });
+});
+
+// ─── filterByProject ─────────────────────────────────────────────────────────
+
+describe('filterByProject', () => {
+  const PROJECT_A = '/work/proj-a';
+  const PROJECT_B = '/work/proj-b';
+
+  const SCOPED_ENTRIES: IndexEntry[] = [
+    { type: 'elimination', content: 'A1', keywords: [], sessionId: 's', timestamp: 't', workingDirectory: PROJECT_A },
+    { type: 'decision', content: 'B1', keywords: [], sessionId: 's', timestamp: 't', workingDirectory: PROJECT_B },
+    { type: 'invariant', content: 'shared-no-wd', keywords: [], sessionId: 's', timestamp: 't', shared: true },
+    { type: 'preference', content: 'A2-shared', keywords: [], sessionId: 's', timestamp: 't', workingDirectory: PROJECT_A, shared: true },
+    { type: 'elimination', content: 'legacy-no-wd', keywords: [], sessionId: 's', timestamp: 't' },
+  ];
+
+  it('returns entries matching the current project', () => {
+    const result = filterByProject(SCOPED_ENTRIES, PROJECT_A);
+    expect(result.map((e) => e.content)).toContain('A1');
+    expect(result.map((e) => e.content)).toContain('A2-shared');
+  });
+
+  it('always includes shared entries regardless of project', () => {
+    const fromB = filterByProject(SCOPED_ENTRIES, PROJECT_B);
+    expect(fromB.map((e) => e.content)).toContain('shared-no-wd');
+    expect(fromB.map((e) => e.content)).toContain('A2-shared');
+    expect(fromB.map((e) => e.content)).toContain('B1');
+  });
+
+  it('excludes legacy entries without workingDirectory and not shared', () => {
+    const fromA = filterByProject(SCOPED_ENTRIES, PROJECT_A);
+    expect(fromA.map((e) => e.content)).not.toContain('legacy-no-wd');
+  });
+
+  it('matches subdirectories of the stored project (prefix-aware)', () => {
+    const result = filterByProject(SCOPED_ENTRIES, path.join(PROJECT_A, 'src'));
+    expect(result.map((e) => e.content)).toContain('A1');
+  });
+
+  it('preserves entry identity (no copies)', () => {
+    const result = filterByProject(SCOPED_ENTRIES, PROJECT_A);
+    expect(result[0]).toBe(SCOPED_ENTRIES[0]);
   });
 });
