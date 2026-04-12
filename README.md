@@ -139,7 +139,7 @@ echo '{"prompt":"fix the auth middleware"}' | harness-mem recall
 
 ### `harness-mem manage`
 
-Interactive constraint control panel — browse, search, simulate recall, and toggle constraints.
+Interactive constraint control panel — browse, search, simulate recall, toggle, share, and delete constraints.
 
 ```bash
 harness-mem manage
@@ -150,6 +150,9 @@ harness-mem manage
 - `Tab` / `Shift+Tab` — switch type filter
 - `↑↓` / `jk` — navigate
 - `Space` — toggle constraint on/off
+- `g` — toggle shared globally (across projects)
+- `d` — delete constraint (asks for `y` confirmation; press `d` again on a deleted row to un-delete)
+- `P` — toggle project filter (scope to current project + globally shared)
 - `p` — toggle detail pane (shows full constraint text)
 - `/` — keyword search
 - `s` — simulate recall
