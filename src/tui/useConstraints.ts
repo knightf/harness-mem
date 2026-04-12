@@ -120,6 +120,8 @@ export function simulateRecall(prompt: string, entries: IndexEntry[]): ScoredEnt
   return scored;
 }
 
+// ─── Deleted-aware helpers (exported for testing) ────────────────────────────
+
 /**
  * Returns only entries whose original index is NOT in the deleted set.
  * Used by the hook's save() path to write the post-delete jsonl.
@@ -136,6 +138,10 @@ export function filterKeptEntries(
  * project-filtered), remove any entry whose original-array index is in
  * `deletedIndices`. Returns the filtered pool along with a mapping so the
  * caller can remap result indices back to positions in the original input.
+ *
+ * NOTE: callers must pass `input` entries that are reference-equal to their
+ * counterparts in `entries` (i.e. no deep copies). Orphan entries that are
+ * not found in `entries` are passed through unchanged.
  */
 export function filterDeletedFromPool(
   input: IndexEntry[],
