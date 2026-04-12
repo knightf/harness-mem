@@ -107,4 +107,33 @@ describe('DetailPane', () => {
     expect(output).toContain('shared globally:');
     expect(output).toContain('no');
   });
+
+  it('does not show the DELETED status line when deleted is false', () => {
+    const entry = makeEntry();
+    const { lastFrame } = render(
+      React.createElement(DetailPane, { entry, visible: true, deleted: false }),
+    );
+    const output = lastFrame() ?? '';
+    expect(output).not.toContain('DELETED');
+  });
+
+  it('shows a red DELETED status line when deleted is true', () => {
+    const entry = makeEntry();
+    const { lastFrame } = render(
+      React.createElement(DetailPane, { entry, visible: true, deleted: true }),
+    );
+    const output = lastFrame() ?? '';
+    expect(output).toContain('status:');
+    expect(output).toContain('DELETED');
+    expect(output).toContain('will be removed on save');
+  });
+
+  it('defaults to not-deleted when prop is omitted', () => {
+    const entry = makeEntry();
+    const { lastFrame } = render(
+      React.createElement(DetailPane, { entry, visible: true }),
+    );
+    const output = lastFrame() ?? '';
+    expect(output).not.toContain('status:');
+  });
 });
