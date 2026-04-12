@@ -137,6 +137,31 @@ echo '{"prompt":"fix the auth middleware"}' | harness-mem recall
 
 **How matching works:** The prompt is tokenized into search terms (stopwords filtered). Each term is scored against the constraint index — exact keyword match (3 points), partial keyword match (2 points), content match (1 point). Top-scoring constraints are returned within the character budget.
 
+### `harness-mem manage`
+
+Interactive constraint control panel — browse, search, simulate recall, toggle, share, and delete constraints.
+
+```bash
+harness-mem manage
+```
+
+**Keybindings:**
+
+- `Tab` / `Shift+Tab` — switch type filter
+- `↑↓` / `jk` — navigate
+- `Space` — toggle constraint on/off
+- `g` — toggle shared globally (across projects)
+- `d` — delete constraint (asks for `y` confirmation; press `d` again on a deleted row to un-delete)
+- `P` — toggle "project + shared" view (hide constraints from other projects; globally shared constraints remain visible)
+- `p` — toggle detail pane (shows full constraint text)
+- `/` — keyword search
+- `s` — simulate recall
+- `q` — save & quit
+
+**Flags:**
+
+- `--digest-dir <path>` — Override digest directory
+
 ### `harness-mem clean`
 
 Delete old digest files. Also rebuilds the constraint index after deletion.
@@ -165,18 +190,46 @@ harness-mem uses a scope engine inspired by JavaScript's execution model to anal
 
 The surviving context is sent to an LLM which extracts **structured constraints** — not a narrative summary, but specific, reusable pieces that help future sessions converge faster:
 
+**Constraints (indexed for retrieval):**
+
 - **Eliminations** — things tried and failed, or explicitly rejected ("Don't mock the DB — it masked a broken migration")
 - **Decisions** — choices made between alternatives, with rationale ("Chose JWT over Redis sessions because stateless + compliant")
 - **Invariants** — facts about the codebase confirmed during the session ("All auth flows go through middleware/auth.ts")
 - **Preferences** — user style/workflow preferences observed ("Prefers bundled PRs for refactors")
-- **Open threads** — unfinished work or unresolved questions
-- **Keywords** — 3-5 retrieval terms extracted by the LLM for fast matching
+
+**Open threads (stored in digests only, shown via `recap`):**
+
+- **Todos** — unfinished work identified during the session
+- **Questions** — unresolved questions that may need follow-up
+
+**Keywords** — 3-5 retrieval terms extracted by the LLM for fast matching
 
 Constraints are stored as JSON (source of truth) and rendered to markdown on display.
 
 ### Constraint Index
 
-At digest time, each constraint is also flattened into a JSONL index file (`~/.harness-mem/digests/constraints.jsonl`). This enables fast keyword-based retrieval without parsing individual digest files. The index is automatically rebuilt when `clean` removes old digests.
+At digest time, each constraint (eliminations, decisions, invariants, preferences) is flattened into a JSONL index file (`~/.harness-mem/digests/constraints.jsonl`). Open threads (todos and questions) are stored only in digest files and are not included in the index. This enables fast keyword-based retrieval without parsing individual digest files. The index is automatically rebuilt when `clean` removes old digests.
+
+### Data Flow
+
+```mermaid
+flowchart LR
+    A[Session ends] --> B[digest]
+    B --> C["Digest file\n(full JSON: summary +\nconstraints + open threads)"]
+    B --> D["Constraint index\n(JSONL: eliminations,\ndecisions, invariants,\npreferences only)"]
+
+    E[Session starts] --> F[recap]
+    F --> C
+    F --> G["Briefing:\nsummary + open threads"]
+
+    H[User sends message] --> I[recall]
+    I --> D
+    I --> J["Matching constraints\ninjected as context"]
+
+    K[User runs manage] --> L[manage]
+    L --> D
+    L --> M["Browse, search,\ntoggle constraints"]
+```
 
 ### Claude Code Hook Integration
 
@@ -220,7 +273,7 @@ Create `~/.harness-mem/config.json` for persistent settings:
 - `GOOGLE_GENERATIVE_AI_API_KEY`
 - `MOONSHOT_API_KEY`
 
-`HARNESS_MEM_PROVIDER` overrides the configured summarization backend. Valid values are `anthropic`, `openai`, `google`, and `moonshotai`.
+`HARNESS_MEM_PROVIDER` overrides the configured summarization backend. Valid values are `anthropic`, `openai`, `google`, `moonshotai`, and `ollama`.
 
 You can also create `~/.harness-mem/.env`:
 
@@ -281,7 +334,7 @@ git clone <repo-url>
 cd harness
 npm install
 
-npm test            # Run tests (131 tests)
+npm test            # Run tests (163 tests)
 npm run test:watch  # Watch mode
 npm run build       # TypeScript compilation
 npm run dev         # Run CLI via tsx

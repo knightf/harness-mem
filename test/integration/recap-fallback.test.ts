@@ -39,6 +39,8 @@ describe('Recap with Fallback', () => {
       since: '24h',
       maxLength: 20000,
       maxFallbackDigests: 10,
+      cwd: '/project',
+      allProjects: true,
     });
 
     expect(output).toContain('being digested in the background');
@@ -77,6 +79,7 @@ describe('Recap with Fallback', () => {
       digestDir: tmpDigestDir,
       since: '24h',
       maxLength: 20000,
+      cwd: '/project',
     });
 
     expect(output).toContain('You built something.');

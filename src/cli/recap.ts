@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import { DigestStore } from '../storage/digest-store.js';
+import { DigestStore, matchesProject } from '../storage/digest-store.js';
 import { parseDuration } from '../engine/utils.js';
 import { discoverUndigestedSessions } from './transcript-discovery.js';
 import { formatRecapToMarkdown } from '../summarizer/formatter.js';
@@ -15,6 +15,10 @@ interface RecapOptions {
   maxLength: number;
   transcriptDir?: string;
   maxFallbackDigests?: number;
+  /** Current working directory used for project-scoped filtering. */
+  cwd?: string;
+  /** When true, skip project filtering and include digests from all projects. */
+  allProjects?: boolean;
   logger?: Logger;
 }
 
@@ -60,8 +64,14 @@ export async function runRecap(options: RecapOptions): Promise<string> {
 
   const store = new DigestStore(options.digestDir);
 
-  const entries = await store.query({ since: parseDuration(options.since) });
-  logger?.debug({ entryCount: entries.length, since: options.since }, 'queried digests');
+  const allEntries = await store.query({ since: parseDuration(options.since) });
+  const entries = options.allProjects
+    ? allEntries
+    : allEntries.filter((e) => matchesProject(e.metadata.workingDirectory, options.cwd ?? ''));
+  logger?.debug(
+    { entryCount: entries.length, totalCount: allEntries.length, since: options.since, allProjects: options.allProjects },
+    'queried digests',
+  );
 
   if (entries.length === 0) {
     return fallbackNote || 'No recent sessions found.';

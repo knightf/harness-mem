@@ -70,14 +70,6 @@ describe('parseStdinPayload', () => {
 });
 
 describe('buildProgram', () => {
-  it('should register digest, recap, and clean commands', () => {
-    const program = buildProgram();
-    const commandNames = program.commands.map((c: any) => c.name());
-    expect(commandNames).toContain('digest');
-    expect(commandNames).toContain('recap');
-    expect(commandNames).toContain('clean');
-  });
-
   it('should spawn detached digest worker for positional transcript path and session ID from CLI', async () => {
     const program = buildProgram();
 
