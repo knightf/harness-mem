@@ -21,12 +21,12 @@ export function DetailPane({ entry, visible }: DetailPaneProps): React.ReactElem
       <Text color={color} bold>[{entry.type}]</Text>
       <Text wrap="wrap">{entry.content}</Text>
       {hasKeywords && (
-        <Text color="gray" dimColor>keywords: {entry.keywords.join(', ')}</Text>
+        <Text color="white">keywords: {entry.keywords.join(', ')}</Text>
       )}
-      <Text color="gray" dimColor>
+      <Text color="white">
         project: <Text color="magentaBright">{entry.workingDirectory || '(unknown)'}</Text>
       </Text>
-      <Text color="gray" dimColor>
+      <Text color="white">
         shared globally: <Text color={entry.shared ? 'cyanBright' : 'gray'}>{entry.shared ? 'yes' : 'no'}</Text>
         {'  '}enabled: <Text color={entry.disabled ? 'red' : 'green'}>{entry.disabled ? 'no' : 'yes'}</Text>
       </Text>
