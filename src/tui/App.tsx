@@ -249,7 +249,7 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
         <Text color="gray"> — {entries.length} total</Text>
         <Text color="gray"> | project: </Text>
         <Text color="magentaBright">{projectBasename}</Text>
-        {projectFilterEnabled && <Text color="green" bold> [scoped]</Text>}
+        {projectFilterEnabled && <Text color="green" bold> [project+shared]</Text>}
       </Box>
 
       {/* Tab bar — counts reflect the active project filter */}
@@ -292,7 +292,7 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
       {/* Footer */}
       <Box marginTop={1}>
         <Text color="gray">
-          Tab: type | ↑↓/jk: nav | Space: enable | g: shared | d: delete | P: project filter | p: detail | /: search | s: simulate | q: save & quit
+          Tab: type | ↑↓/jk: nav | Space: enable | g: shared | d: delete | P: project + shared | p: detail | /: search | s: simulate | q: save & quit
         </Text>
       </Box>
     </Box>

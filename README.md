@@ -152,7 +152,7 @@ harness-mem manage
 - `Space` — toggle constraint on/off
 - `g` — toggle shared globally (across projects)
 - `d` — delete constraint (asks for `y` confirmation; press `d` again on a deleted row to un-delete)
-- `P` — toggle project filter (scope to current project + globally shared)
+- `P` — toggle "project + shared" view (hide constraints from other projects; globally shared constraints remain visible)
 - `p` — toggle detail pane (shows full constraint text)
 - `/` — keyword search
 - `s` — simulate recall
