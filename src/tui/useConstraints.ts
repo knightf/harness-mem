@@ -20,6 +20,8 @@ export interface UseConstraintsResult {
   dirty: boolean;
   toggleDisabled: (originalIndex: number) => void;
   toggleShared: (originalIndex: number) => void;
+  toggleDeleted: (originalIndex: number) => void;
+  isDeleted: (originalIndex: number) => boolean;
   save: () => Promise<void>;
   filterByTab: (tab: string, entries: IndexEntry[]) => ScoredEntry[];
   filterByProject: (entries: IndexEntry[]) => IndexEntry[];
@@ -173,17 +175,21 @@ export function useConstraints(digestDir: string, currentCwd: string): UseConstr
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [deletedIndices, setDeletedIndices] = useState<Set<number>>(new Set());
   const indexPath = path.join(digestDir, 'constraints.jsonl');
 
   useEffect(() => {
     fsp.readFile(indexPath, 'utf-8')
       .then((content) => {
         setEntries(loadConstraintsFromString(content));
+        setDeletedIndices(new Set());
+        setDirty(false);
         setLoading(false);
       })
       .catch((err) => {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
           setEntries([]);
+          setDeletedIndices(new Set());
         } else {
           setError(String(err));
         }
@@ -209,14 +215,46 @@ export function useConstraints(digestDir: string, currentCwd: string): UseConstr
     setDirty(true);
   }, []);
 
+  const toggleDeleted = useCallback((originalIndex: number) => {
+    setDeletedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(originalIndex)) {
+        next.delete(originalIndex);
+      } else {
+        next.add(originalIndex);
+      }
+      return next;
+    });
+    setDirty(true);
+  }, []);
+
+  const isDeleted = useCallback(
+    (originalIndex: number) => deletedIndices.has(originalIndex),
+    [deletedIndices],
+  );
+
   const save = useCallback(async () => {
-    await saveConstraints(indexPath, entries);
+    const kept = filterKeptEntries(entries, deletedIndices);
+    await saveConstraints(indexPath, kept);
     setDirty(false);
-  }, [indexPath, entries]);
+    // Note: entries and deletedIndices are intentionally NOT reset here.
+    // save() is only called from the quit path and the process exits
+    // immediately after, so mutating in-memory state would risk breaking
+    // index stability for any concurrent render without any benefit.
+  }, [indexPath, entries, deletedIndices]);
 
   const filterByProjectBound = useCallback(
     (input: IndexEntry[]) => filterByProject(input, currentCwd),
     [currentCwd],
+  );
+
+  const simulateRecallBound = useCallback(
+    (prompt: string, input: IndexEntry[]): ScoredEntry[] => {
+      const { pool, poolToInputIdx } = filterDeletedFromPool(input, entries, deletedIndices);
+      const results = simulateRecall(prompt, pool);
+      return results.map((s) => ({ ...s, index: poolToInputIdx[s.index] ?? s.index }));
+    },
+    [entries, deletedIndices],
   );
 
   return {
@@ -226,10 +264,12 @@ export function useConstraints(digestDir: string, currentCwd: string): UseConstr
     dirty,
     toggleDisabled,
     toggleShared,
+    toggleDeleted,
+    isDeleted,
     save,
     filterByTab,
     filterByProject: filterByProjectBound,
     filterBySearch,
-    simulateRecall,
+    simulateRecall: simulateRecallBound,
   };
 }
