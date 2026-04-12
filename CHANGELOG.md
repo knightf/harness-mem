@@ -1,5 +1,11 @@
 # harness-mem
 
+## 0.2.1
+
+### Patch Changes
+
+- dc2ee03: add interactive `manage` TUI, scope digests/constraints by project with shared flag, and tighten summarizer dedup
+
 ## 0.2.0
 
 ### Minor Changes
