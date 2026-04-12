@@ -10,6 +10,7 @@ interface ConstraintRowProps {
   entry: IndexEntry;
   isFocused: boolean;
   score?: number;
+  deleted?: boolean;
 }
 
 const PROJECT_COL_WIDTH = 14;
@@ -22,7 +23,7 @@ function projectLabel(workingDirectory: string | undefined): string {
   return base.slice(0, PROJECT_COL_WIDTH - 1) + '…';
 }
 
-export function ConstraintRow({ entry, isFocused, score }: ConstraintRowProps): React.ReactElement {
+export function ConstraintRow({ entry, isFocused, score, deleted = false }: ConstraintRowProps): React.ReactElement {
   const toggleChar = entry.disabled ? ' ' : '✓';
   const sharedChar = entry.shared ? 'G' : ' ';
   const color = TYPE_COLORS[entry.type] ?? 'white';
@@ -40,7 +41,8 @@ export function ConstraintRow({ entry, isFocused, score }: ConstraintRowProps): 
         <Text color={entry.shared ? 'cyanBright' : 'gray'} bold>[{sharedChar}] </Text>
         <Text color={color} bold>{entry.type.padEnd(11)} </Text>
         <Text color="magenta" dimColor>{project}</Text>
-        <Text color={entry.disabled ? 'gray' : 'white'}>{truncated}</Text>
+        <Text color={entry.disabled ? 'gray' : 'white'} strikethrough={deleted}>{truncated}</Text>
+        {deleted && <Text color="red" bold> DELETED</Text>}
         {score !== undefined && <Text color="yellowBright"> ({score})</Text>}
       </Text>
     </Box>
