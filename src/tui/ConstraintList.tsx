@@ -10,9 +10,10 @@ const VIEWPORT_SIZE = 15;
 interface ConstraintListProps {
   items: ScoredEntry[];
   cursor: number;
+  isDeleted?: (originalIndex: number) => boolean;
 }
 
-export function ConstraintList({ items, cursor }: ConstraintListProps): React.ReactElement {
+export function ConstraintList({ items, cursor, isDeleted }: ConstraintListProps): React.ReactElement {
   if (items.length === 0) {
     return (
       <Box paddingLeft={1}>
@@ -44,6 +45,7 @@ export function ConstraintList({ items, cursor }: ConstraintListProps): React.Re
           entry={item.entry}
           isFocused={start + i === cursor}
           score={item.score}
+          deleted={isDeleted ? isDeleted(item.index) : false}
         />
       ))}
       {end < items.length && (

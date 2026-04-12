@@ -10,7 +10,7 @@ import { DetailPane } from './DetailPane.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppMode = 'browse' | 'search' | 'simulation';
+type AppMode = 'browse' | 'search' | 'simulation' | 'confirmDelete';
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -28,6 +28,8 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
     dirty,
     toggleDisabled,
     toggleShared,
+    toggleDeleted,
+    isDeleted,
     save,
     filterByTab,
     filterByProject,
@@ -106,7 +108,19 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
   }, [mode, entries, scopedEntries, projectFilterEnabled, displayItems, filterBySearch, simulateRecall]);
 
   useInput((input, key) => {
-    // In input mode, only Escape is handled here
+    // Confirm-delete mode: `y` confirms, anything else cancels. No other bindings fire.
+    if (mode === 'confirmDelete') {
+      if (input === 'y') {
+        const item = displayItems[cursor];
+        if (item) {
+          toggleDeleted(item.index);
+        }
+      }
+      setMode('browse');
+      return;
+    }
+
+    // Search / simulation input mode: only Escape is handled here
     if (mode !== 'browse') {
       if (key.escape) {
         setMode('browse');
@@ -184,6 +198,18 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
       return;
     }
 
+    if (input === 'd') {
+      const item = displayItems[cursor];
+      if (!item) return;
+      if (isDeleted(item.index)) {
+        // Un-delete is a safe action — no confirm needed.
+        toggleDeleted(item.index);
+      } else {
+        setMode('confirmDelete');
+      }
+      return;
+    }
+
     if (input === '/') {
       setMode('search');
       setInputValue('');
@@ -228,7 +254,7 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
       <TabBar activeTab={activeTab} entries={scopedEntries} />
 
       {/* Search/simulation input */}
-      {mode !== 'browse' && (
+      {(mode === 'search' || mode === 'simulation') && (
         <SearchInput
           mode={mode}
           value={inputValue}
@@ -244,19 +270,27 @@ export function App({ digestDir, cwd }: AppProps): React.ReactElement {
         </Text>
       )}
 
+      {/* Delete confirmation */}
+      {mode === 'confirmDelete' && (
+        <Text color="red" bold>
+          Delete this constraint? (y = confirm, any other key = cancel)
+        </Text>
+      )}
+
       {/* Constraint list */}
-      <ConstraintList items={displayItems} cursor={cursor} />
+      <ConstraintList items={displayItems} cursor={cursor} isDeleted={isDeleted} />
 
       {/* Detail pane */}
       <DetailPane
         entry={displayItems[cursor]?.entry ?? null}
         visible={detailVisible}
+        deleted={displayItems[cursor] ? isDeleted(displayItems[cursor].index) : false}
       />
 
       {/* Footer */}
       <Box marginTop={1}>
         <Text color="gray">
-          Tab: type | ↑↓/jk: nav | Space: enable | g: shared | P: project filter | p: detail | /: search | s: simulate | q: save & quit
+          Tab: type | ↑↓/jk: nav | Space: enable | g: shared | d: delete | P: project filter | p: detail | /: search | s: simulate | q: save & quit
         </Text>
       </Box>
     </Box>
